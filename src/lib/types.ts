@@ -1,0 +1,38 @@
+export type SessionStatus = "open" | "closed";
+export type CommentType = "good" | "bad";
+
+export type ImageRow = {
+  id: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  store_name: string | null;
+  shelf_category: string | null;
+  created_at: string;
+};
+
+export type SessionRow = {
+  id: string;
+  image_id: string;
+  title: string | null;
+  facilitator_id: string | null;
+  status: SessionStatus;
+  created_at: string;
+  closed_at: string | null;
+};
+
+export type CommentRow = {
+  id: string;
+  session_id: string;
+  image_id: string;
+  position_x: number;
+  position_y: number;
+  comment_type: CommentType;
+  body: string;
+  author_id: string | null;
+  author_email?: string | null;
+  created_at: string;
+};
+
+export type SessionWithImage = SessionRow & {
+  images: ImageRow | null;
+};
