@@ -1,8 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
+
+  if (!isSupabaseConfigured()) {
+    // .env.local が未設定の間は、Supabase接続を必要としない
+    // /setup 案内ページへ強制的にリダイレクトする
+    if (request.nextUrl.pathname === "/setup") {
+      return response;
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = "/setup";
+    return NextResponse.redirect(url);
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
