@@ -29,6 +29,13 @@ export default async function HomePage() {
     commentCounts[row.session_id] = (commentCounts[row.session_id] ?? 0) + 1;
   }
 
+  if (user) {
+    await supabase
+      .from("profiles")
+      .update({ notifications_seen_at: new Date().toISOString() })
+      .eq("id", user.id);
+  }
+
   if (error) {
     return (
       <p className="text-sm text-red-600">
