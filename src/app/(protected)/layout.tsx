@@ -71,7 +71,11 @@ export default async function ProtectedLayout({
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 pb-24">
         {children}
       </main>
-      <BottomNav unreadCount={unreadCount} displayName={displayName} />
+      <BottomNav
+        unreadCount={unreadCount}
+        displayName={displayName}
+        userId={user?.id ?? null}
+      />
     </div>
   );
 }

@@ -337,6 +337,17 @@ export default function PinBoard({
     if (error) {
       setComments((prev) => prev.filter((c) => c.id !== newComment.id));
       alert(`投稿に失敗しました: ${error.message}`);
+    } else {
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "new_comment",
+          sessionId: session.id,
+          authorId: currentUserId,
+          facilitatorId: session.facilitator_id,
+        }),
+      }).catch(() => {});
     }
     setSubmitting(false);
   }

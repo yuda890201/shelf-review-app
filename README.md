@@ -41,6 +41,7 @@ npx supabase db push
 - `20250101000008_resolved_sessions.sql` — 「対応済み」フラグと改善後(after)写真用のカラムを `sessions` に追加
 - `20250101000009_notifications_seen_at.sql` — 通知バッジ計算用に最終閲覧時刻を保存するカラムを `profiles` に追加
 - `20250101000010_claps.sql` — 無制限に送れる応援用の `claps` テーブルを追加。`reactions.reaction_type` の値を `like` → `done`(完成)に改名(「ありがとう」は独立した拍手に、`reactions` は「完成/まだまだ」の1人1票判定専用に整理)
+- `20250101000011_push_subscriptions.sql` — Web Push通知の購読情報を保存する `push_subscriptions` テーブルを追加(任意機能。設定しなくても他の機能には影響しません)
 
 ### 3. 認証方式の確認
 
@@ -54,7 +55,20 @@ cp .env.example .env.local
 
 `.env.local` に Supabase の URL と anon key を設定します。
 
-### 5. 開発サーバー起動
+### 5. (任意)Web Push通知を有効にする
+
+新しい売場写真の投稿・自分の投稿へのコメントをプッシュ通知で受け取れる機能です。設定しなくてもアプリ本体は問題なく動作します。
+
+1. VAPID鍵ペアを生成: `npx web-push generate-vapid-keys`
+2. `.env.local`(と Vercel の環境変数)に追加:
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — 生成した Public Key
+   - `VAPID_PRIVATE_KEY` — 生成した Private Key
+   - `SUPABASE_SERVICE_ROLE_KEY` — Supabase Dashboard > Project Settings > API の `service_role` シークレット(RLSを無視して通知購読を検索するために使用。**サーバー専用の秘密情報なので `NEXT_PUBLIC_` を付けないこと**)
+3. `20250101000011_push_subscriptions.sql` を適用
+
+通知が届くのは **iOS 16.4以降でホーム画面に追加したPWA** または対応するAndroid/デスクトップブラウザのみです(iOS 16.4未満の端末では通知機能自体が表示されません)。
+
+### 6. 開発サーバー起動
 
 ```bash
 npm install
@@ -74,7 +88,9 @@ npm run dev
 | `/comments` | コメント一覧・キーワード/種別での検索 |
 | `/dashboard` | 店舗別・売場カテゴリ別の「まだまだ率」集計(高い順)|
 
-画面全体はInstagramのように常時ダークモードで統一されています。ヘッダーメニューはInstagram同様に画面下部の固定アイコンバー(`src/components/bottom-nav.tsx`)にまとめており、ホーム/コメント一覧/新規投稿/ダッシュボードのアイコンと、プロフィール(表示名・ログアウト)を開くアイコンを配置しています。「フィード」アイコンには、自分が作成したセッションに他の人からの新着コメント・リアクションがあると未読件数バッジが表示されます(フィードを開くと既読になります)。iPhone/Androidともホーム画面に追加するとアプリのようにフルスクリーンで開けます(PWA対応)。
+画面全体はInstagramのように常時ダークモードで統一されています。ヘッダーメニューはInstagram同様に画面下部の固定アイコンバー(`src/components/bottom-nav.tsx`)にまとめており、ホーム/コメント一覧/新規投稿/ダッシュボードのアイコンと、プロフィール(表示名・通知設定・ログアウト)を開くアイコンを配置しています。「フィード」アイコンには、自分が作成したセッションに他の人からの新着コメント・リアクションがあると未読件数バッジが表示されます(フィードを開くと既読になります)。iPhone/Androidともホーム画面に追加するとアプリのようにフルスクリーンで開けます(PWA対応)。
+
+プロフィールシートの「🔔 通知を有効にする」から、新しい売場写真の投稿・自分の投稿へのコメントをWeb Pushで受け取れます(対応端末のみボタンが表示されます)。通知の送信は `src/app/api/notify/route.ts` が担当し、`src/lib/supabase/admin.ts` の service role クライアントで購読者を検索して `web-push` パッケージで配信します。
 
 実際に時間のかかる処理(複数枚アップロード、対応済み写真の登録、コメントモーダルの初回読み込み)では `src/components/loading-overlay.tsx` を表示し、アプリの使い方やアイコンの意味をランダムなヒントとして案内します。一瞬で終わる画面遷移には表示されません。
 
@@ -82,7 +98,7 @@ npm run dev
 
 `sessions`(1枚の画像を囲むブレスト会) → `images`(売場画像、Storageパスと店舗/棚カテゴリのメタ情報) → `comments`(相対座標0〜1のピン位置 + good/bad種別 + 本文 + 投稿者)。`reactions` はセッション単位で1ユーザー1件(`unique(session_id, user_id)`)の「完成(done)/まだまだ(needs_work)」を保持し、フィードの完成率計算に使う。`claps` は1人が何回でも送れる「ありがとう」の応援ログで、投稿したスタッフのモチベーション向上が目的のため上限や1人1票制限はない。
 
-`images.embedding` はフェーズ2以降の類似画像検索用に予約したカラムで、MVPでは未使用です。
+`images.embedding` はフェーズ2以降の類似画像検索用に予約したカラムで、MVPでは未使用です。`push_subscriptions` はWeb Push通知の購読情報(ブラウザから発行されるendpoint/鍵)を保持し、通知送信時にservice roleキーで参照します。
 
 ## MVPで未実装の機能(意図的なスコープ外)
 

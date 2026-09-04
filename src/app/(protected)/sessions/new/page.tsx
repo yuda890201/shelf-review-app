@@ -94,6 +94,18 @@ export default function NewSessionPage() {
       .single();
     if (sessionError) throw sessionError;
 
+    fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "new_session",
+        sessionId: session.id,
+        authorId: userId,
+        store,
+        category,
+      }),
+    }).catch(() => {});
+
     return session.id as string;
   }
 

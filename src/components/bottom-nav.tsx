@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SignOutButton from "@/components/sign-out-button";
+import PushNotificationToggle from "@/components/push-notification-toggle";
 
 function Icon({ d, active }: { d: string; active: boolean }) {
   return (
@@ -35,9 +36,11 @@ const ICONS = {
 export default function BottomNav({
   unreadCount,
   displayName,
+  userId,
 }: {
   unreadCount: number;
   displayName: string | null;
+  userId: string | null;
 }) {
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -63,6 +66,9 @@ export default function BottomNav({
             <p className="mb-3 text-sm font-semibold text-gray-100">
               {displayName ?? "ゲスト"}
             </p>
+            <div className="mb-2">
+              <PushNotificationToggle userId={userId} />
+            </div>
             <SignOutButton />
           </div>
         </div>
