@@ -6,35 +6,43 @@ export async function compressImage(file: File): Promise<File> {
     return file;
   }
 
-  let bitmap: ImageBitmap;
+  // Loaded via an <img> element rather than createImageBitmap(): browsers
+  // have long applied EXIF orientation consistently when decoding <img>
+  // sources, whereas createImageBitmap's orientation handling depends on an
+  // options dictionary that isn't uniformly supported/defaulted across
+  // browsers — that mismatch is what caused portrait photos to come out
+  // sideways here even after requesting "from-image" explicitly.
+  const objectUrl = URL.createObjectURL(file);
+  let img: HTMLImageElement;
   try {
-    // "from-image" makes the bitmap respect the file's EXIF orientation tag.
-    // Without it, some browsers draw the raw sensor orientation, and since
-    // canvas.toBlob() below has no way to carry EXIF forward, a portrait
-    // photo would come out sideways with no metadata left to fix it.
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("image load failed"));
+      el.src = objectUrl;
+    });
   } catch {
-    try {
-      bitmap = await createImageBitmap(file);
-    } catch {
-      return file;
-    }
+    URL.revokeObjectURL(objectUrl);
+    return file;
   }
 
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const scale = Math.min(
+    1,
+    MAX_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight),
+  );
+  const width = Math.max(1, Math.round(img.naturalWidth * scale));
+  const height = Math.max(1, Math.round(img.naturalHeight * scale));
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    bitmap.close();
+    URL.revokeObjectURL(objectUrl);
     return file;
   }
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
+  ctx.drawImage(img, 0, 0, width, height);
+  URL.revokeObjectURL(objectUrl);
 
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob((b) => resolve(b), "image/jpeg", JPEG_QUALITY),
