@@ -22,6 +22,7 @@ type Step = "store" | "category" | "categoryOther" | "camera" | "uploading";
 export default function NewSessionPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>("store");
   const [store, setStore] = useState("");
@@ -198,12 +199,26 @@ export default function NewSessionPage() {
             onChange={handleFileSelected}
             className="hidden"
           />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelected}
+            className="hidden"
+          />
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full rounded-lg bg-blue-600 px-4 py-6 text-lg font-bold text-white active:bg-blue-700"
+            className="w-full rounded-lg bg-blue-600 px-4 py-8 text-xl font-bold text-white active:bg-blue-700"
           >
             📷 カメラを起動
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 active:bg-gray-50"
+          >
+            写真を選ぶ(カメラロールから)
           </button>
           {errorMessage && (
             <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
