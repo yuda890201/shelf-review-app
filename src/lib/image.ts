@@ -8,9 +8,17 @@ export async function compressImage(file: File): Promise<File> {
 
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(file);
+    // "from-image" makes the bitmap respect the file's EXIF orientation tag.
+    // Without it, some browsers draw the raw sensor orientation, and since
+    // canvas.toBlob() below has no way to carry EXIF forward, a portrait
+    // photo would come out sideways with no metadata left to fix it.
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
-    return file;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      return file;
+    }
   }
 
   const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));

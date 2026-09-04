@@ -20,6 +20,8 @@ const SHELF_CATEGORIES = [
 
 type Step = "store" | "category" | "categoryOther" | "camera" | "uploading";
 
+const MAX_FILES = 5;
+
 export default function NewSessionPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +32,7 @@ export default function NewSessionPage() {
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   function selectStore(name: string) {
     setStore(name);
@@ -52,12 +55,56 @@ export default function NewSessionPage() {
     setStep("camera");
   }
 
+  async function createSessionFromFile(
+    file: File,
+    userId: string,
+  ): Promise<string> {
+    const supabase = createClient();
+    const compressed = await compressImage(file);
+    const ext = compressed.name.split(".").pop() || "jpg";
+    const storagePath = `${userId}/${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("shelf-images")
+      .upload(storagePath, compressed);
+    if (uploadError) throw uploadError;
+
+    const { data: image, error: imageError } = await supabase
+      .from("images")
+      .insert({
+        storage_path: storagePath,
+        uploaded_by: userId,
+        store_name: store,
+        shelf_category: category,
+      })
+      .select()
+      .single();
+    if (imageError) throw imageError;
+
+    const { data: session, error: sessionError } = await supabase
+      .from("sessions")
+      .insert({
+        image_id: image.id,
+        title: `${store} ${category}`,
+        facilitator_id: userId,
+        status: "open",
+      })
+      .select()
+      .single();
+    if (sessionError) throw sessionError;
+
+    return session.id as string;
+  }
+
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) return;
+    const allFiles = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (allFiles.length === 0) return;
+    const files = allFiles.slice(0, MAX_FILES);
 
     setStep("uploading");
     setErrorMessage("");
+    setProgress({ done: 0, total: files.length });
 
     const supabase = createClient();
     const {
@@ -70,44 +117,39 @@ export default function NewSessionPage() {
       return;
     }
 
-    try {
-      const compressed = await compressImage(file);
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const storagePath = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    const sessionIds: string[] = [];
+    const failures: string[] = [];
 
-      const { error: uploadError } = await supabase.storage
-        .from("shelf-images")
-        .upload(storagePath, compressed);
-      if (uploadError) throw uploadError;
+    for (const file of files) {
+      try {
+        const sessionId = await createSessionFromFile(file, user.id);
+        sessionIds.push(sessionId);
+      } catch (err) {
+        failures.push(err instanceof Error ? err.message : "エラー");
+      }
+      setProgress((prev) => ({ ...prev, done: prev.done + 1 }));
+    }
 
-      const { data: image, error: imageError } = await supabase
-        .from("images")
-        .insert({
-          storage_path: storagePath,
-          uploaded_by: user.id,
-          store_name: store,
-          shelf_category: category,
-        })
-        .select()
-        .single();
-      if (imageError) throw imageError;
-
-      const { data: session, error: sessionError } = await supabase
-        .from("sessions")
-        .insert({
-          image_id: image.id,
-          title: `${store} ${category}`,
-          facilitator_id: user.id,
-          status: "open",
-        })
-        .select()
-        .single();
-      if (sessionError) throw sessionError;
-
-      router.push(`/sessions/${session.id}`);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "エラーが発生しました。");
+    if (sessionIds.length === 0) {
+      setErrorMessage(
+        failures[0]
+          ? `アップロードに失敗しました: ${failures[0]}`
+          : "アップロードに失敗しました。",
+      );
       setStep("camera");
+      return;
+    }
+
+    if (failures.length > 0) {
+      alert(
+        `${sessionIds.length}件は作成できましたが、${failures.length}件失敗しました。`,
+      );
+    }
+
+    if (sessionIds.length === 1) {
+      router.push(`/sessions/${sessionIds[0]}`);
+    } else {
+      router.push("/");
     }
   }
 
@@ -205,6 +247,7 @@ export default function NewSessionPage() {
             ref={galleryInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handleFileSelected}
             className="hidden"
           />
@@ -220,7 +263,7 @@ export default function NewSessionPage() {
             onClick={() => galleryInputRef.current?.click()}
             className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 active:bg-gray-50"
           >
-            写真を選ぶ(カメラロールから)
+            写真を選ぶ(カメラロールから、最大{MAX_FILES}枚まとめて選択可)
           </button>
           {errorMessage && (
             <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
@@ -239,6 +282,7 @@ export default function NewSessionPage() {
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-base font-semibold text-gray-700">
             アップロード中...
+            {progress.total > 1 && ` (${progress.done}/${progress.total})`}
           </p>
           <p className="mt-1 text-xs text-gray-400">
             {store} / {category}
