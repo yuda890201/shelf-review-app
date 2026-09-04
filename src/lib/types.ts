@@ -31,6 +31,10 @@ export type CommentRow = {
   author_id: string | null;
   author_email?: string | null;
   created_at: string;
+  width_pct: number;
+  height_pct: number;
+  rotation_deg: number;
+  color: string;
 };
 
 export type SessionWithImage = SessionRow & {

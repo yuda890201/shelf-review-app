@@ -13,6 +13,103 @@ const TYPE_LABEL: Record<CommentType, string> = {
   bad: "気になる点",
 };
 
+const BASE_WIDTH_PCT = 0.16;
+const BASE_HEIGHT_PCT = 0.045;
+const FRAME_COLORS = [
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f43f5e",
+];
+
+function colorForId(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return FRAME_COLORS[hash % FRAME_COLORS.length];
+}
+
+function PinChip({
+  x,
+  y,
+  widthPx,
+  heightPx,
+  rotationDeg,
+  color,
+  text,
+  textClassName,
+  onClick,
+  isActive,
+}: {
+  x: number;
+  y: number;
+  widthPx: number;
+  heightPx: number;
+  rotationDeg: number;
+  color: string;
+  text: string;
+  textClassName: string;
+  onClick?: (e: React.MouseEvent) => void;
+  isActive?: boolean;
+}) {
+  const fontSizePx = Math.max(8, heightPx * 0.55);
+  const duration = Math.max(4, text.length * 0.18);
+  const style: React.CSSProperties = {
+    left: `${x * 100}%`,
+    top: `${y * 100}%`,
+    width: `${widthPx}px`,
+    height: `${heightPx}px`,
+    transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
+    borderColor: color,
+  };
+  const track = (
+    <span className="marquee-track" style={{ animationDuration: `${duration}s` }}>
+      {[0, 1].map((copy) => (
+        <span
+          key={copy}
+          aria-hidden={copy === 1}
+          className={`whitespace-nowrap px-2 font-bold ${textClassName}`}
+          style={{ fontSize: `${fontSizePx}px`, lineHeight: `${heightPx}px` }}
+        >
+          {text || " "}
+        </span>
+      ))}
+    </span>
+  );
+
+  if (!onClick) {
+    return (
+      <div
+        className="pointer-events-none absolute z-20 overflow-hidden rounded border-2 bg-transparent"
+        style={style}
+      >
+        {track}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={style}
+      className={`absolute z-10 overflow-hidden rounded border-2 bg-transparent ${
+        isActive ? "ring-2 ring-blue-400" : ""
+      }`}
+      title={text}
+    >
+      {track}
+    </button>
+  );
+}
+
 export default function SessionBoard({
   session,
   initialComments,
@@ -31,13 +128,31 @@ export default function SessionBoard({
   const [pendingPin, setPendingPin] = useState<PendingPin | null>(null);
   const [commentType, setCommentType] = useState<CommentType>("bad");
   const [body, setBody] = useState("");
+  const [frameScale, setFrameScale] = useState(1);
+  const [rotation, setRotation] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const [tagSuggestions, setTagSuggestions] = useState<Record<CommentType, string[]>>({
     good: [],
     bad: [],
   });
+
+  useEffect(() => {
+    const el = imageRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      setImgSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,15 +223,18 @@ export default function SessionBoard({
     setPendingPin({ x, y });
     setBody("");
     setCommentType("bad");
+    setFrameScale(1);
+    setRotation(0);
   }
 
   async function postComment(text: string, type: CommentType) {
     if (!pendingPin || !currentUserId || !text.trim()) return;
     const pin = pendingPin;
+    const id = crypto.randomUUID();
 
     setSubmitting(true);
     const newComment: CommentRow = {
-      id: crypto.randomUUID(),
+      id,
       session_id: session.id,
       image_id: session.image_id,
       position_x: pin.x,
@@ -125,6 +243,10 @@ export default function SessionBoard({
       body: text.trim(),
       author_id: currentUserId,
       created_at: new Date().toISOString(),
+      width_pct: BASE_WIDTH_PCT * frameScale,
+      height_pct: BASE_HEIGHT_PCT * frameScale,
+      rotation_deg: rotation,
+      color: colorForId(id),
     };
 
     addCommentIfNew(newComment);
@@ -140,6 +262,10 @@ export default function SessionBoard({
       comment_type: newComment.comment_type,
       body: newComment.body,
       author_id: newComment.author_id,
+      width_pct: newComment.width_pct,
+      height_pct: newComment.height_pct,
+      rotation_deg: newComment.rotation_deg,
+      color: newComment.color,
     });
 
     if (error) {
@@ -232,47 +358,43 @@ export default function SessionBoard({
             draggable={false}
           />
 
-          {sortedComments.map((c) => {
-            const duration = Math.max(4, c.body.length * 0.18);
-            const isGood = c.comment_type === "good";
-            return (
-              <button
+          {imgSize.width > 0 &&
+            sortedComments.map((c) => (
+              <PinChip
                 key={c.id}
-                type="button"
+                x={c.position_x}
+                y={c.position_y}
+                widthPx={c.width_pct * imgSize.width}
+                heightPx={c.height_pct * imgSize.height}
+                rotationDeg={c.rotation_deg}
+                color={c.color}
+                text={c.body}
+                textClassName={c.comment_type === "good" ? "text-green-700" : "text-red-700"}
+                isActive={activeCommentId === c.id}
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveCommentId(c.id === activeCommentId ? null : c.id);
                 }}
-                style={{ left: `${c.position_x * 100}%`, top: `${c.position_y * 100}%` }}
-                className={`absolute z-10 h-6 w-24 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border-2 bg-white/90 shadow ${
-                  isGood ? "border-green-500" : "border-red-500"
-                } ${activeCommentId === c.id ? "ring-2 ring-blue-400" : ""}`}
-                title={c.body}
-              >
-                <span
-                  className="marquee-track"
-                  style={{ animationDuration: `${duration}s` }}
-                >
-                  {[0, 1].map((copy) => (
-                    <span
-                      key={copy}
-                      aria-hidden={copy === 1}
-                      className={`whitespace-nowrap px-2 py-1 text-[10px] font-bold ${
-                        isGood ? "text-green-700" : "text-red-700"
-                      }`}
-                    >
-                      {c.body}
-                    </span>
-                  ))}
-                </span>
-              </button>
-            );
-          })}
+              />
+            ))}
+
+          {pendingPin && imgSize.width > 0 && (
+            <PinChip
+              x={pendingPin.x}
+              y={pendingPin.y}
+              widthPx={BASE_WIDTH_PCT * frameScale * imgSize.width}
+              heightPx={BASE_HEIGHT_PCT * frameScale * imgSize.height}
+              rotationDeg={rotation}
+              color="#94a3b8"
+              text={body || "(プレビュー)"}
+              textClassName="text-gray-600"
+            />
+          )}
 
           {pendingPin && (
             <div
               style={{ left: `${pendingPin.x * 100}%`, top: `${pendingPin.y * 100}%` }}
-              className="absolute z-20 w-64 -translate-x-1/2 translate-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-lg"
+              className="absolute z-30 w-64 -translate-x-1/2 translate-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-lg"
               onClick={(e) => e.stopPropagation()}
             >
               <form onSubmit={handleSubmitComment} className="flex flex-col gap-2">
@@ -294,6 +416,32 @@ export default function SessionBoard({
                     </button>
                   ))}
                 </div>
+
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className="w-10 shrink-0">サイズ</span>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2.5}
+                    step={0.1}
+                    value={frameScale}
+                    onChange={(e) => setFrameScale(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className="w-10 shrink-0">角度</span>
+                  <input
+                    type="range"
+                    min={-45}
+                    max={45}
+                    step={1}
+                    value={rotation}
+                    onChange={(e) => setRotation(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                </div>
+
                 {tagSuggestions[commentType].length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {tagSuggestions[commentType].map((tag) => (

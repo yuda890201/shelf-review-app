@@ -37,6 +37,7 @@ npx supabase db push
 - `20250101000004_realtime.sql` — `comments` テーブルをRealtimeパブリケーションに追加
 - `20250101000005_profiles.sql` — 匿名ログインの表示名を保存する `profiles` テーブル
 - `20250101000006_reactions.sql` — セッション(写真)単位の「いいね」「まだまだ」リアクション用 `reactions` テーブル
+- `20250101000007_comment_frame_style.sql` — コメントピンの枠のサイズ・角度・色を保存するカラムを `comments` に追加
 
 ### 3. 認証方式の確認
 
