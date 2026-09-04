@@ -232,23 +232,42 @@ export default function SessionBoard({
             draggable={false}
           />
 
-          {sortedComments.map((c, i) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveCommentId(c.id === activeCommentId ? null : c.id);
-              }}
-              style={{ left: `${c.position_x * 100}%`, top: `${c.position_y * 100}%` }}
-              className={`absolute z-10 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow ${
-                c.comment_type === "good" ? "bg-green-500" : "bg-red-500"
-              }`}
-              title={c.body}
-            >
-              {i + 1}
-            </button>
-          ))}
+          {sortedComments.map((c) => {
+            const duration = Math.max(4, c.body.length * 0.18);
+            const isGood = c.comment_type === "good";
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveCommentId(c.id === activeCommentId ? null : c.id);
+                }}
+                style={{ left: `${c.position_x * 100}%`, top: `${c.position_y * 100}%` }}
+                className={`absolute z-10 h-6 w-24 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border-2 bg-white/90 shadow ${
+                  isGood ? "border-green-500" : "border-red-500"
+                } ${activeCommentId === c.id ? "ring-2 ring-blue-400" : ""}`}
+                title={c.body}
+              >
+                <span
+                  className="marquee-track"
+                  style={{ animationDuration: `${duration}s` }}
+                >
+                  {[0, 1].map((copy) => (
+                    <span
+                      key={copy}
+                      aria-hidden={copy === 1}
+                      className={`whitespace-nowrap px-2 py-1 text-[10px] font-bold ${
+                        isGood ? "text-green-700" : "text-red-700"
+                      }`}
+                    >
+                      {c.body}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            );
+          })}
 
           {pendingPin && (
             <div
