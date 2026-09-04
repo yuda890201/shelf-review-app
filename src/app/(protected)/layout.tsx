@@ -84,6 +84,12 @@ export default async function ProtectedLayout({
             >
               コメント一覧
             </Link>
+            <Link
+              href="/dashboard"
+              className="text-gray-600 hover:text-gray-900"
+            >
+              ダッシュボード
+            </Link>
           </nav>
           <div className="flex items-center gap-3 text-sm text-gray-500">
             <span>{displayName}</span>
