@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { compressImage } from "@/lib/image";
 
 const STORES = ["博多住吉通り店", "清川二丁目店"];
 
@@ -70,12 +71,13 @@ export default function NewSessionPage() {
     }
 
     try {
-      const ext = file.name.split(".").pop() || "jpg";
+      const compressed = await compressImage(file);
+      const ext = compressed.name.split(".").pop() || "jpg";
       const storagePath = `${user.id}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("shelf-images")
-        .upload(storagePath, file);
+        .upload(storagePath, compressed);
       if (uploadError) throw uploadError;
 
       const { data: image, error: imageError } = await supabase

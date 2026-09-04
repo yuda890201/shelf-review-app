@@ -11,7 +11,9 @@ export default async function HomePage() {
 
   const { data: sessions, error } = await supabase
     .from("sessions")
-    .select("*, images(*)")
+    .select(
+      "*, images!sessions_image_id_fkey(*), after_image:images!sessions_after_image_id_fkey(*)",
+    )
     .order("created_at", { ascending: false })
     .returns<SessionWithImage[]>();
 

@@ -17,7 +17,9 @@ export default async function SessionDetailPage({
 
   const { data: session } = await supabase
     .from("sessions")
-    .select("*, images(*)")
+    .select(
+      "*, images!sessions_image_id_fkey(*), after_image:images!sessions_after_image_id_fkey(*)",
+    )
     .eq("id", id)
     .single<SessionWithImage>();
 

@@ -251,15 +251,22 @@ export default function Feed({
                       `/ ${session.images.shelf_category}`}
                   </p>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                    session.status === "open"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-200 text-gray-600"
-                  }`}
-                >
-                  {session.status === "open" ? "進行中" : "クローズ済"}
-                </span>
+                <div className="flex shrink-0 gap-1">
+                  {session.resolved_at && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                      ✅ 対応済み
+                    </span>
+                  )}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      session.status === "open"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {session.status === "open" ? "進行中" : "クローズ済"}
+                  </span>
+                </div>
               </Link>
 
               <div

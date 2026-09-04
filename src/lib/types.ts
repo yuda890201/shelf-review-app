@@ -18,6 +18,8 @@ export type SessionRow = {
   status: SessionStatus;
   created_at: string;
   closed_at: string | null;
+  resolved_at: string | null;
+  after_image_id: string | null;
 };
 
 export type CommentRow = {
@@ -39,6 +41,7 @@ export type CommentRow = {
 
 export type SessionWithImage = SessionRow & {
   images: ImageRow | null;
+  after_image: ImageRow | null;
 };
 
 export type ReactionType = "like" | "needs_work";
