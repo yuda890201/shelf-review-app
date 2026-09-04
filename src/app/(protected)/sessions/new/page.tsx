@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image";
+import LoadingOverlay from "@/components/loading-overlay";
 
 const STORES = ["博多住吉通り店", "清川二丁目店"];
 
@@ -279,15 +280,11 @@ export default function NewSessionPage() {
       )}
 
       {step === "uploading" && (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <p className="text-base font-semibold text-gray-200">
-            アップロード中...
-            {progress.total > 1 && ` (${progress.done}/${progress.total})`}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            {store} / {category}
-          </p>
-        </div>
+        <LoadingOverlay
+          label={`アップロード中...${
+            progress.total > 1 ? ` (${progress.done}/${progress.total})` : ""
+          }`}
+        />
       )}
     </div>
   );

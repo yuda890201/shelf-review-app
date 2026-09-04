@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import { compressImage } from "@/lib/image";
 import type { CommentRow, ImageRow, SessionWithImage } from "@/lib/types";
+import LoadingOverlay from "@/components/loading-overlay";
 import PinBoard from "./pin-board";
 
 export default function SessionBoard({
@@ -96,6 +97,8 @@ export default function SessionBoard({
 
   return (
     <div>
+      {resolving && <LoadingOverlay label="対応済み写真を登録中..." />}
+
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-gray-100">

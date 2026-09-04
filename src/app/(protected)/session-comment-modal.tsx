@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
+import LoadingOverlay from "@/components/loading-overlay";
 import PinBoard from "./sessions/[id]/pin-board";
 
 export default function SessionCommentModal({
@@ -81,7 +82,7 @@ export default function SessionCommentModal({
 
         <div className="overflow-y-auto p-3">
           {comments === null ? (
-            <p className="py-10 text-center text-sm text-gray-500">読み込み中...</p>
+            <LoadingOverlay variant="inline" label="読み込み中..." />
           ) : (
             <PinBoard
               session={session}
