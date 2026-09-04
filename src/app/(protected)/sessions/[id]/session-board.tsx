@@ -36,6 +36,9 @@ function colorForId(id: string) {
   return FRAME_COLORS[hash % FRAME_COLORS.length];
 }
 
+const TEXT_OUTLINE =
+  "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 5px rgba(0,0,0,0.7)";
+
 function PinChip({
   x,
   y,
@@ -44,7 +47,6 @@ function PinChip({
   rotationDeg,
   color,
   text,
-  textClassName,
   onClick,
   isActive,
 }: {
@@ -55,11 +57,10 @@ function PinChip({
   rotationDeg: number;
   color: string;
   text: string;
-  textClassName: string;
   onClick?: (e: React.MouseEvent) => void;
   isActive?: boolean;
 }) {
-  const fontSizePx = Math.max(8, heightPx * 0.55);
+  const fontSizePx = Math.max(9, heightPx * 0.65);
   const duration = Math.max(4, text.length * 0.18);
   const style: React.CSSProperties = {
     left: `${x * 100}%`,
@@ -75,8 +76,13 @@ function PinChip({
         <span
           key={copy}
           aria-hidden={copy === 1}
-          className={`whitespace-nowrap px-2 font-bold ${textClassName}`}
-          style={{ fontSize: `${fontSizePx}px`, lineHeight: `${heightPx}px` }}
+          className="whitespace-nowrap px-2 font-black tracking-wide"
+          style={{
+            fontSize: `${fontSizePx}px`,
+            lineHeight: `${heightPx}px`,
+            color,
+            textShadow: TEXT_OUTLINE,
+          }}
         >
           {text || " "}
         </span>
@@ -227,7 +233,7 @@ export default function SessionBoard({
     setRotation(0);
   }
 
-  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   function distanceFromPinCenter(pin: PendingPin, clientX: number, clientY: number) {
     const rect = imageRef.current?.getBoundingClientRect();
@@ -235,6 +241,17 @@ export default function SessionBoard({
     const centerX = rect.left + pin.x * rect.width;
     const centerY = rect.top + pin.y * rect.height;
     return Math.hypot(clientX - centerX, clientY - centerY);
+  }
+
+  function startDrag(onMove: (e: PointerEvent) => void) {
+    const handleUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", handleUp);
+      dragCleanupRef.current = null;
+    };
+    dragCleanupRef.current = handleUp;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", handleUp);
   }
 
   function handleResizeStart(e: React.PointerEvent) {
@@ -245,25 +262,37 @@ export default function SessionBoard({
     const startDistance = Math.max(1, distanceFromPinCenter(pin, e.clientX, e.clientY));
     const startScale = frameScale;
 
-    const onMove = (ev: PointerEvent) => {
+    startDrag((ev) => {
       const distance = distanceFromPinCenter(pin, ev.clientX, ev.clientY);
       setFrameScale(
         Math.min(3, Math.max(0.5, startScale * (distance / startDistance))),
       );
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      resizeCleanupRef.current = null;
-    };
-    resizeCleanupRef.current = onUp;
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function handleMoveStart(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!pendingPin) return;
+    const startPin = pendingPin;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+
+    startDrag((ev) => {
+      const rect = imageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dx = (ev.clientX - startClientX) / rect.width;
+      const dy = (ev.clientY - startClientY) / rect.height;
+      setPendingPin({
+        x: Math.min(1, Math.max(0, startPin.x + dx)),
+        y: Math.min(1, Math.max(0, startPin.y + dy)),
+      });
+    });
   }
 
   useEffect(() => {
     return () => {
-      resizeCleanupRef.current?.();
+      dragCleanupRef.current?.();
     };
   }, []);
 
@@ -408,8 +437,7 @@ export default function SessionBoard({
                 heightPx={c.height_pct * imgSize.height}
                 rotationDeg={c.rotation_deg}
                 color={c.color}
-                text={c.body}
-                textClassName={c.comment_type === "good" ? "text-green-700" : "text-red-700"}
+                text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
                 isActive={activeCommentId === c.id}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -426,10 +454,13 @@ export default function SessionBoard({
                 width: `${BASE_WIDTH_PCT * frameScale * imgSize.width}px`,
                 height: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
                 transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-                borderColor: "#94a3b8",
+                borderColor:
+                  commentType === "good" ? "#22c55e" : "#ef4444",
+                touchAction: "none",
               }}
-              className="absolute z-20 overflow-visible rounded border-2 border-dashed bg-transparent"
+              className="absolute z-20 cursor-move overflow-visible rounded border-2 border-dashed bg-transparent"
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={handleMoveStart}
             >
               <div className="h-full w-full overflow-hidden">
                 <span
@@ -445,16 +476,19 @@ export default function SessionBoard({
                     <span
                       key={copy}
                       aria-hidden={copy === 1}
-                      className="whitespace-nowrap px-2 font-bold text-gray-500"
+                      className="whitespace-nowrap px-2 font-black tracking-wide"
                       style={{
                         fontSize: `${Math.max(
-                          8,
-                          BASE_HEIGHT_PCT * frameScale * imgSize.height * 0.55,
+                          9,
+                          BASE_HEIGHT_PCT * frameScale * imgSize.height * 0.65,
                         )}px`,
                         lineHeight: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
+                        color: commentType === "good" ? "#22c55e" : "#ef4444",
+                        textShadow: TEXT_OUTLINE,
                       }}
                     >
-                      {body || "(プレビュー)"}
+                      {(commentType === "good" ? "✅ " : "⚠️ ") +
+                        (body || "(プレビュー)")}
                     </span>
                   ))}
                 </span>
@@ -581,8 +615,10 @@ export default function SessionBoard({
                 onChange={(e) => setRotation(Number(e.target.value))}
                 className="flex-1"
               />
-              <span className="w-16 shrink-0 text-right text-[11px] text-gray-400">
-                枠は右下の◯をドラッグ
+              <span className="text-right text-[11px] leading-tight text-gray-400">
+                枠をドラッグで移動
+                <br />
+                右下の◯でサイズ変更
               </span>
             </div>
 
