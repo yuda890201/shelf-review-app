@@ -31,7 +31,7 @@ export default async function ProtectedLayout({
               売場添削アプリ
             </Link>
             <Link href="/" className="text-gray-600 hover:text-gray-900">
-              セッション一覧
+              フィード
             </Link>
             <Link
               href="/comments"

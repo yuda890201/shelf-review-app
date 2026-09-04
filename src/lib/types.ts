@@ -36,3 +36,13 @@ export type CommentRow = {
 export type SessionWithImage = SessionRow & {
   images: ImageRow | null;
 };
+
+export type ReactionType = "like" | "needs_work";
+
+export type ReactionRow = {
+  id: string;
+  session_id: string;
+  user_id: string;
+  reaction_type: ReactionType;
+  created_at: string;
+};

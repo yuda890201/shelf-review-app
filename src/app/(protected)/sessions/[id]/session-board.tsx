@@ -34,6 +34,40 @@ export default function SessionBoard({
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState<Record<CommentType, string[]>>({
+    good: [],
+    bad: [],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("comments")
+      .select("body, comment_type")
+      .order("created_at", { ascending: false })
+      .limit(500)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const counts: Record<CommentType, Map<string, number>> = {
+          good: new Map(),
+          bad: new Map(),
+        };
+        for (const row of data as { body: string; comment_type: CommentType }[]) {
+          const map = counts[row.comment_type];
+          map.set(row.body, (map.get(row.body) ?? 0) + 1);
+        }
+        const topOf = (map: Map<string, number>) =>
+          [...map.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([text]) => text);
+        setTagSuggestions({ good: topOf(counts.good), bad: topOf(counts.bad) });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isFacilitator = currentUserId && currentUserId === session.facilitator_id;
   const isOpen = status === "open";
@@ -76,19 +110,19 @@ export default function SessionBoard({
     setCommentType("bad");
   }
 
-  async function handleSubmitComment(e: React.FormEvent) {
-    e.preventDefault();
-    if (!pendingPin || !currentUserId || !body.trim()) return;
+  async function postComment(text: string, type: CommentType) {
+    if (!pendingPin || !currentUserId || !text.trim()) return;
+    const pin = pendingPin;
 
     setSubmitting(true);
     const newComment: CommentRow = {
       id: crypto.randomUUID(),
       session_id: session.id,
       image_id: session.image_id,
-      position_x: pendingPin.x,
-      position_y: pendingPin.y,
-      comment_type: commentType,
-      body: body.trim(),
+      position_x: pin.x,
+      position_y: pin.y,
+      comment_type: type,
+      body: text.trim(),
       author_id: currentUserId,
       created_at: new Date().toISOString(),
     };
@@ -113,6 +147,15 @@ export default function SessionBoard({
       alert(`投稿に失敗しました: ${error.message}`);
     }
     setSubmitting(false);
+  }
+
+  async function handleSubmitComment(e: React.FormEvent) {
+    e.preventDefault();
+    await postComment(body, commentType);
+  }
+
+  async function handleTagTap(text: string) {
+    await postComment(text, commentType);
   }
 
   async function handleClose() {
@@ -232,6 +275,21 @@ export default function SessionBoard({
                     </button>
                   ))}
                 </div>
+                {tagSuggestions[commentType].length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {tagSuggestions[commentType].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => handleTagTap(tag)}
+                        className="rounded-full border border-gray-300 bg-gray-50 px-2 py-1 text-xs text-gray-600 active:bg-gray-200 disabled:opacity-50"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <textarea
                   autoFocus
                   value={body}
