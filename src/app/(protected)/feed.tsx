@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
-import type { ReactionRow, ReactionType, SessionWithImage } from "@/lib/types";
+import type {
+  ClapRow,
+  ReactionRow,
+  ReactionType,
+  SessionWithImage,
+} from "@/lib/types";
 import SessionCommentModal from "./session-comment-modal";
 
 type SortMode = "new" | "needs_work";
@@ -12,16 +17,20 @@ type SortMode = "new" | "needs_work";
 export default function Feed({
   initialSessions,
   initialReactions,
+  initialClapCounts,
   commentCounts,
   currentUserId,
 }: {
   initialSessions: SessionWithImage[];
   initialReactions: ReactionRow[];
+  initialClapCounts: Record<string, number>;
   commentCounts: Record<string, number>;
   currentUserId: string | null;
 }) {
   const supabase = createClient();
   const [reactions, setReactions] = useState<ReactionRow[]>(initialReactions);
+  const [clapCounts, setClapCounts] =
+    useState<Record<string, number>>(initialClapCounts);
   const [storeFilter, setStoreFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
@@ -56,6 +65,17 @@ export default function Feed({
         (payload) => {
           const oldRow = payload.old as { id: string };
           setReactions((prev) => prev.filter((r) => r.id !== oldRow.id));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "claps" },
+        (payload) => {
+          const row = payload.new as ClapRow;
+          setClapCounts((prev) => ({
+            ...prev,
+            [row.session_id]: (prev[row.session_id] ?? 0) + 1,
+          }));
         },
       )
       .subscribe();
@@ -111,14 +131,24 @@ export default function Feed({
     }
   }
 
+  async function handleClap(sessionId: string) {
+    if (!currentUserId) return;
+    setPoppingId(sessionId);
+    setTimeout(() => setPoppingId((cur) => (cur === sessionId ? null : cur)), 800);
+    // カウントはリアルタイム購読(claps INSERT)側で加算するので、ここでは
+    // 楽観的更新をせず二重カウントを避ける。
+    await supabase.from("claps").insert({
+      session_id: sessionId,
+      user_id: currentUserId,
+    });
+  }
+
   function handlePhotoTap(sessionId: string, e: React.MouseEvent) {
     const now = e.timeStamp;
     const last = lastTapRef.current[sessionId] ?? 0;
     if (now - last < 300) {
       lastTapRef.current[sessionId] = 0;
-      handleReact(sessionId, "like");
-      setPoppingId(sessionId);
-      setTimeout(() => setPoppingId((cur) => (cur === sessionId ? null : cur)), 800);
+      handleClap(sessionId);
     } else {
       lastTapRef.current[sessionId] = now;
     }
@@ -180,7 +210,7 @@ export default function Feed({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold">フィード</h1>
+        <h1 className="text-lg font-bold text-gray-100">フィード</h1>
         <Link
           href="/sessions/new"
           className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
@@ -194,7 +224,7 @@ export default function Feed({
           <select
             value={storeFilter}
             onChange={(e) => setStoreFilter(e.target.value)}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+            className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
           >
             <option value="">すべての店舗</option>
             {stores.map((s) => (
@@ -206,7 +236,7 @@ export default function Feed({
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+            className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
           >
             <option value="">すべての売場</option>
             {categories.map((c) => (
@@ -218,7 +248,7 @@ export default function Feed({
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="ml-auto rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+            className="ml-auto rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
           >
             <option value="new">新着順</option>
             <option value="needs_work">まだまだ率が高い順</option>
@@ -241,31 +271,32 @@ export default function Feed({
           const sessionReactions = reactions.filter(
             (r) => r.session_id === session.id,
           );
-          const likeCount = sessionReactions.filter(
-            (r) => r.reaction_type === "like",
+          const doneCount = sessionReactions.filter(
+            (r) => r.reaction_type === "done",
           ).length;
           const needsWorkCount = sessionReactions.filter(
             (r) => r.reaction_type === "needs_work",
           ).length;
-          const total = likeCount + needsWorkCount;
-          const likeRate = total ? Math.round((likeCount / total) * 100) : 0;
-          const needsWorkRate = total ? 100 - likeRate : 0;
+          const total = doneCount + needsWorkCount;
+          const doneRate = total ? Math.round((doneCount / total) * 100) : 0;
+          const needsWorkRate = total ? 100 - doneRate : 0;
           const myReaction = sessionReactions.find(
             (r) => r.user_id === currentUserId,
           )?.reaction_type;
           const commentCount = commentCounts[session.id] ?? 0;
+          const clapCount = clapCounts[session.id] ?? 0;
 
           return (
             <article
               key={session.id}
-              className="overflow-hidden rounded-lg border border-gray-200 bg-white"
+              className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
             >
               <Link
                 href={`/sessions/${session.id}`}
                 className="flex items-center justify-between px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">
+                  <p className="truncate text-sm font-semibold text-gray-100">
                     {session.title || "無題のセッション"}
                   </p>
                   <p className="truncate text-xs text-gray-500">
@@ -276,15 +307,15 @@ export default function Feed({
                 </div>
                 <div className="flex shrink-0 gap-1">
                   {session.resolved_at && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                    <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
                       ✅ 対応済み
                     </span>
                   )}
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       session.status === "open"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-200 text-gray-600"
+                        ? "bg-green-900/50 text-green-300"
+                        : "bg-neutral-700 text-gray-300"
                     }`}
                   >
                     {session.status === "open" ? "進行中" : "クローズ済"}
@@ -300,13 +331,13 @@ export default function Feed({
                 <img
                   src={shelfImagePublicUrl(session.images.storage_path)}
                   alt=""
-                  className="aspect-square w-full bg-gray-100 object-cover"
+                  className="aspect-square w-full bg-neutral-800 object-cover"
                   draggable={false}
                 />
 
                 {myReaction && (
                   <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
-                    {myReaction === "like" ? "🙏" : "🔧"}
+                    {myReaction === "done" ? "✅" : "🔧"}
                   </div>
                 )}
 
@@ -318,25 +349,33 @@ export default function Feed({
               </div>
 
               <div className="px-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => handleClap(session.id)}
+                  className="mb-2 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-gray-200 active:bg-neutral-700"
+                >
+                  🙏 ありがとう {clapCount}
+                </button>
+
                 <div className="mb-2 flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handleReact(session.id, "like")}
+                    onClick={() => handleReact(session.id, "done")}
                     className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
-                      myReaction === "like"
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-gray-300 text-gray-600"
+                      myReaction === "done"
+                        ? "border-blue-500 bg-blue-950/60 text-blue-300"
+                        : "border-neutral-700 text-gray-400"
                     }`}
                   >
-                    🙏 ありがとう {likeCount}
+                    ✅ 完成 {doneCount}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleReact(session.id, "needs_work")}
                     className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
                       myReaction === "needs_work"
-                        ? "border-orange-500 bg-orange-50 text-orange-700"
-                        : "border-gray-300 text-gray-600"
+                        ? "border-orange-500 bg-orange-950/60 text-orange-300"
+                        : "border-neutral-700 text-gray-400"
                     }`}
                   >
                     🔧 まだまだ {needsWorkCount}
@@ -347,7 +386,7 @@ export default function Feed({
                   <button
                     type="button"
                     onClick={() => setOpenSessionId(session.id)}
-                    className="flex items-center gap-1 text-gray-600"
+                    className="flex items-center gap-1 text-gray-400"
                   >
                     <span className="text-xl leading-none">💬</span>
                     <span className="text-xs">{commentCount}</span>
@@ -355,7 +394,7 @@ export default function Feed({
                   <button
                     type="button"
                     onClick={() => handleShare(session)}
-                    className="text-xl leading-none text-gray-600"
+                    className="text-xl leading-none text-gray-400"
                     aria-label="共有"
                   >
                     📤
@@ -364,10 +403,10 @@ export default function Feed({
 
                 {total > 0 && (
                   <div className="mb-2">
-                    <div className="flex h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
                       <div
                         className="bg-blue-500"
-                        style={{ width: `${likeRate}%` }}
+                        style={{ width: `${doneRate}%` }}
                       />
                       <div
                         className="bg-orange-400"
@@ -375,7 +414,7 @@ export default function Feed({
                       />
                     </div>
                     <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-                      <span>ありがとう率 {likeRate}%</span>
+                      <span>完成率 {doneRate}%</span>
                       <span>まだまだ率 {needsWorkRate}%</span>
                     </div>
                   </div>

@@ -3,7 +3,7 @@ import type { ReactionRow, SessionWithImage } from "@/lib/types";
 
 type GroupStat = {
   key: string;
-  likeCount: number;
+  doneCount: number;
   needsWorkCount: number;
   total: number;
   needsWorkRate: number;
@@ -19,21 +19,21 @@ function aggregate(
     keyBySession[s.id] = keyOf(s) ?? null;
   }
 
-  const groups: Record<string, { like: number; needs: number }> = {};
+  const groups: Record<string, { done: number; needs: number }> = {};
   for (const r of reactions) {
     const key = keyBySession[r.session_id];
     if (!key) continue;
-    groups[key] ??= { like: 0, needs: 0 };
-    if (r.reaction_type === "like") groups[key].like += 1;
+    groups[key] ??= { done: 0, needs: 0 };
+    if (r.reaction_type === "done") groups[key].done += 1;
     else groups[key].needs += 1;
   }
 
   return Object.entries(groups)
-    .map(([key, { like, needs }]) => {
-      const total = like + needs;
+    .map(([key, { done, needs }]) => {
+      const total = done + needs;
       return {
         key,
-        likeCount: like,
+        doneCount: done,
         needsWorkCount: needs,
         total,
         needsWorkRate: total ? Math.round((needs / total) * 100) : 0,
@@ -54,18 +54,18 @@ function Section({
   if (stats.length === 0) return null;
   return (
     <div className={className}>
-      <h2 className="mb-3 text-sm font-bold text-gray-700">{title}</h2>
+      <h2 className="mb-3 text-sm font-bold text-gray-300">{title}</h2>
       <div className="flex flex-col gap-3">
         {stats.map((s) => (
           <div
             key={s.key}
-            className="rounded-md border border-gray-200 bg-white p-3"
+            className="rounded-md border border-neutral-800 bg-neutral-900 p-3"
           >
             <div className="mb-1 flex items-center justify-between text-sm">
-              <span className="font-semibold text-gray-900">{s.key}</span>
+              <span className="font-semibold text-gray-100">{s.key}</span>
               <span className="text-xs text-gray-500">{s.total}件の反応</span>
             </div>
-            <div className="flex h-2 overflow-hidden rounded-full bg-gray-100">
+            <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
               <div
                 className="bg-blue-500"
                 style={{ width: `${100 - s.needsWorkRate}%` }}
@@ -76,7 +76,7 @@ function Section({
               />
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-              <span>ありがとう率 {100 - s.needsWorkRate}%</span>
+              <span>完成率 {100 - s.needsWorkRate}%</span>
               <span>まだまだ率 {s.needsWorkRate}%</span>
             </div>
           </div>
@@ -112,14 +112,14 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-lg font-bold">まだまだ率ダッシュボード</h1>
+      <h1 className="mb-1 text-lg font-bold text-gray-100">まだまだ率ダッシュボード</h1>
       <p className="mb-6 text-xs text-gray-500">
-        店舗・売場カテゴリごとの「ありがとう/まだまだ」反応の集計です。まだまだ率が高い順に並んでいます。
+        店舗・売場カテゴリごとの「完成/まだまだ」反応の集計です。まだまだ率が高い順に並んでいます。
       </p>
 
       {byStore.length === 0 && byCategory.length === 0 && (
         <p className="text-sm text-gray-500">
-          まだリアクションのデータがありません。フィードで「ありがとう」「まだまだ」を押すとここに集計されます。
+          まだリアクションのデータがありません。フィードで「完成」「まだまだ」を押すとここに集計されます。
         </p>
       )}
 

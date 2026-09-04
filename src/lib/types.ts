@@ -44,12 +44,19 @@ export type SessionWithImage = SessionRow & {
   after_image: ImageRow | null;
 };
 
-export type ReactionType = "like" | "needs_work";
+export type ReactionType = "done" | "needs_work";
 
 export type ReactionRow = {
   id: string;
   session_id: string;
   user_id: string;
   reaction_type: ReactionType;
+  created_at: string;
+};
+
+export type ClapRow = {
+  id: string;
+  session_id: string;
+  user_id: string;
   created_at: string;
 };

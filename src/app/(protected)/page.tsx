@@ -22,6 +22,13 @@ export default async function HomePage() {
     .select("*")
     .returns<ReactionRow[]>();
 
+  const { data: clapRows } = await supabase.from("claps").select("session_id");
+
+  const clapCounts: Record<string, number> = {};
+  for (const row of clapRows ?? []) {
+    clapCounts[row.session_id] = (clapCounts[row.session_id] ?? 0) + 1;
+  }
+
   const { data: commentRows } = await supabase.from("comments").select("session_id");
 
   const commentCounts: Record<string, number> = {};
@@ -38,7 +45,7 @@ export default async function HomePage() {
 
   if (error) {
     return (
-      <p className="text-sm text-red-600">
+      <p className="text-sm text-red-400">
         読み込みに失敗しました: {error.message}
       </p>
     );
@@ -48,6 +55,7 @@ export default async function HomePage() {
     <Feed
       initialSessions={sessions ?? []}
       initialReactions={reactions ?? []}
+      initialClapCounts={clapCounts}
       commentCounts={commentCounts}
       currentUserId={user?.id ?? null}
     />

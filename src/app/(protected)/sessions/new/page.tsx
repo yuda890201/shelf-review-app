@@ -157,14 +157,14 @@ export default function NewSessionPage() {
     <div className="mx-auto max-w-lg">
       {step === "store" && (
         <div>
-          <h1 className="mb-4 text-lg font-bold">店舗を選んでください</h1>
+          <h1 className="mb-4 text-lg font-bold text-gray-100">店舗を選んでください</h1>
           <div className="flex flex-col gap-3">
             {STORES.map((name) => (
               <button
                 key={name}
                 type="button"
                 onClick={() => selectStore(name)}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-800 active:bg-blue-50"
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-4 text-base font-semibold text-gray-100 active:bg-blue-950/50"
               >
                 {name}
               </button>
@@ -175,7 +175,7 @@ export default function NewSessionPage() {
 
       {step === "category" && (
         <div>
-          <h1 className="mb-1 text-lg font-bold">撮影する売場を選んでください</h1>
+          <h1 className="mb-1 text-lg font-bold text-gray-100">撮影する売場を選んでください</h1>
           <p className="mb-4 text-xs text-gray-500">店舗: {store}</p>
           <div className="grid grid-cols-2 gap-3">
             {SHELF_CATEGORIES.map((name) => (
@@ -183,7 +183,7 @@ export default function NewSessionPage() {
                 key={name}
                 type="button"
                 onClick={() => selectCategory(name)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-4 text-sm font-semibold text-gray-800 active:bg-blue-50"
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-4 text-sm font-semibold text-gray-100 active:bg-blue-950/50"
               >
                 {name}
               </button>
@@ -201,7 +201,7 @@ export default function NewSessionPage() {
 
       {step === "categoryOther" && (
         <div>
-          <h1 className="mb-1 text-lg font-bold">売場の名前を入力してください</h1>
+          <h1 className="mb-1 text-lg font-bold text-gray-100">売場の名前を入力してください</h1>
           <p className="mb-4 text-xs text-gray-500">店舗: {store}</p>
           <input
             type="text"
@@ -209,7 +209,7 @@ export default function NewSessionPage() {
             value={customCategory}
             onChange={(e) => setCustomCategory(e.target.value)}
             placeholder="例: 雑誌コーナー"
-            className="mb-3 w-full rounded-md border border-gray-300 px-3 py-3 text-base"
+            className="mb-3 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-3 text-base text-gray-100 placeholder-gray-500"
           />
           <button
             type="button"
@@ -231,7 +231,7 @@ export default function NewSessionPage() {
 
       {step === "camera" && (
         <div>
-          <h1 className="mb-1 text-lg font-bold">写真を撮影してください</h1>
+          <h1 className="mb-1 text-lg font-bold text-gray-100">写真を撮影してください</h1>
           <p className="mb-6 text-xs text-gray-500">
             店舗: {store} / 売場: {category}
           </p>
@@ -261,12 +261,12 @@ export default function NewSessionPage() {
           <button
             type="button"
             onClick={() => galleryInputRef.current?.click()}
-            className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 active:bg-gray-50"
+            className="mt-3 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-300 active:bg-neutral-800"
           >
             写真を選ぶ(カメラロールから、最大{MAX_FILES}枚まとめて選択可)
           </button>
           {errorMessage && (
-            <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
+            <p className="mt-3 text-sm text-red-400">{errorMessage}</p>
           )}
           <button
             type="button"
@@ -280,11 +280,11 @@ export default function NewSessionPage() {
 
       {step === "uploading" && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <p className="text-base font-semibold text-gray-700">
+          <p className="text-base font-semibold text-gray-200">
             アップロード中...
             {progress.total > 1 && ` (${progress.done}/${progress.total})`}
           </p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             {store} / {category}
           </p>
         </div>

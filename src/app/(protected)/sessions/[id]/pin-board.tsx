@@ -370,7 +370,7 @@ export default function PinBoard({
         <div
           ref={imageRef}
           onClick={handleImageClick}
-          className={`relative w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 ${
+          className={`relative w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 ${
             isOpen ? "cursor-crosshair" : ""
           }`}
         >
@@ -459,11 +459,11 @@ export default function PinBoard({
 
         {showList && !pendingPin && (
           <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-bold text-gray-700">
+            <h2 className="text-sm font-bold text-gray-300">
               コメント ({sortedComments.length})
             </h2>
             {sortedComments.length === 0 && (
-              <p className="text-xs text-gray-400">まだコメントはありません。</p>
+              <p className="text-xs text-gray-500">まだコメントはありません。</p>
             )}
             <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
               {sortedComments.map((c, i) => (
@@ -472,26 +472,26 @@ export default function PinBoard({
                   onClick={() => setActiveCommentId(c.id === activeCommentId ? null : c.id)}
                   className={`cursor-pointer rounded-md border p-2 text-sm ${
                     activeCommentId === c.id
-                      ? "border-blue-400 bg-blue-50"
-                      : "border-gray-200 bg-white"
+                      ? "border-blue-400 bg-blue-950/50"
+                      : "border-neutral-800 bg-neutral-900"
                   }`}
                 >
                   <div className="mb-1 flex items-center gap-2 text-xs">
-                    <span className="font-bold text-gray-400">#{i + 1}</span>
+                    <span className="font-bold text-gray-500">#{i + 1}</span>
                     <span
                       className={`rounded-full px-1.5 py-0.5 font-medium ${
                         c.comment_type === "good"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
+                          ? "bg-green-900/50 text-green-300"
+                          : "bg-red-900/50 text-red-300"
                       }`}
                     >
                       {TYPE_LABEL[c.comment_type]}
                     </span>
-                    <span className="ml-auto text-gray-400">
+                    <span className="ml-auto text-gray-500">
                       {new Date(c.created_at).toLocaleTimeString("ja-JP")}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-gray-800">{c.body}</p>
+                  <p className="whitespace-pre-wrap text-gray-200">{c.body}</p>
                 </li>
               ))}
             </ul>
@@ -501,9 +501,9 @@ export default function PinBoard({
 
       {pendingPin && (
         <div
-          className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl border-t border-gray-200 p-4 shadow-lg"
+          className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl border-t border-neutral-700 p-4 shadow-lg"
           style={{
-            background: "rgba(255,255,255,0.88)",
+            background: "rgba(23,23,23,0.92)",
             paddingBottom: "calc(1rem + env(safe-area-inset-bottom))",
           }}
         >
@@ -520,9 +520,9 @@ export default function PinBoard({
                   className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold ${
                     commentType === t
                       ? t === "good"
-                        ? "border-green-500 bg-green-50 text-green-700"
-                        : "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-300 text-gray-500"
+                        ? "border-green-500 bg-green-950/60 text-green-300"
+                        : "border-red-500 bg-red-950/60 text-red-300"
+                      : "border-neutral-600 text-gray-400"
                   }`}
                 >
                   {TYPE_LABEL[t]}
@@ -538,7 +538,7 @@ export default function PinBoard({
                     type="button"
                     disabled={submitting}
                     onClick={() => handleTagTap(tag)}
-                    className="shrink-0 whitespace-nowrap rounded-full border border-gray-300 bg-gray-50/90 px-3 py-1.5 text-xs text-gray-600 active:bg-gray-200 disabled:opacity-50"
+                    className="shrink-0 whitespace-nowrap rounded-full border border-neutral-600 bg-neutral-800/90 px-3 py-1.5 text-xs text-gray-300 active:bg-neutral-700 disabled:opacity-50"
                   >
                     {tag}
                   </button>
@@ -552,10 +552,10 @@ export default function PinBoard({
               onChange={(e) => setBody(e.target.value)}
               placeholder="気づいた点を入力..."
               rows={2}
-              className="w-full rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-neutral-600 bg-neutral-800/70 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
             />
 
-            <div className="flex items-center gap-2 text-xs text-gray-600">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="w-10 shrink-0">角度</span>
               <input
                 type="range"
@@ -566,7 +566,7 @@ export default function PinBoard({
                 onChange={(e) => setRotation(Number(e.target.value))}
                 className="flex-1"
               />
-              <span className="text-right text-[11px] leading-tight text-gray-400">
+              <span className="text-right text-[11px] leading-tight text-gray-500">
                 枠をドラッグで移動
                 <br />
                 右下の◯でサイズ変更
@@ -577,7 +577,7 @@ export default function PinBoard({
               <button
                 type="button"
                 onClick={() => setPendingPin(null)}
-                className="flex-1 rounded-md border border-gray-300 bg-white/70 px-2 py-2 text-xs"
+                className="flex-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200"
               >
                 キャンセル
               </button>

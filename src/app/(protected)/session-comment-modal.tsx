@@ -51,10 +51,10 @@ export default function SessionCommentModal({
         onClick={onClose}
         className="absolute inset-0 bg-black/50"
       />
-      <div className="slide-up-sheet absolute inset-x-0 bottom-0 flex max-h-[92vh] flex-col rounded-t-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="slide-up-sheet absolute inset-x-0 bottom-0 flex max-h-[92vh] flex-col rounded-t-2xl bg-neutral-900 shadow-xl">
+        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-gray-900">
+            <p className="truncate text-sm font-semibold text-gray-100">
               {session.title || "無題のセッション"}
             </p>
             <p className="truncate text-xs text-gray-500">
@@ -65,14 +65,14 @@ export default function SessionCommentModal({
           <div className="flex shrink-0 items-center gap-3">
             <Link
               href={`/sessions/${session.id}`}
-              className="text-xs text-gray-500 underline"
+              className="text-xs text-gray-400 underline"
             >
               詳細ページ
             </Link>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-gray-300 px-2 py-1 text-xs text-gray-600"
+              className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-gray-300"
             >
               ✕ 閉じる
             </button>
@@ -81,7 +81,7 @@ export default function SessionCommentModal({
 
         <div className="overflow-y-auto p-3">
           {comments === null ? (
-            <p className="py-10 text-center text-sm text-gray-400">読み込み中...</p>
+            <p className="py-10 text-center text-sm text-gray-500">読み込み中...</p>
           ) : (
             <PinBoard
               session={session}

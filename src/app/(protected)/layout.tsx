@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "@/components/sign-out-button";
+import BottomNav from "@/components/bottom-nav";
 
 async function getUnreadCount(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -60,46 +60,18 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            <Link href="/" className="font-bold text-gray-900">
-              売場添削アプリ
-            </Link>
-            <Link
-              href="/"
-              className="relative text-gray-600 hover:text-gray-900"
-            >
-              フィード
-              {unreadCount > 0 && (
-                <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </Link>
-            <Link
-              href="/comments"
-              className="text-gray-600 hover:text-gray-900"
-            >
-              コメント一覧
-            </Link>
-            <Link
-              href="/dashboard"
-              className="text-gray-600 hover:text-gray-900"
-            >
-              ダッシュボード
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3 text-sm text-gray-500">
-            <span>{displayName}</span>
-            <SignOutButton />
-          </div>
+    <div className="flex min-h-screen flex-col bg-black">
+      <header className="sticky top-0 z-20 border-b border-neutral-800 bg-black">
+        <div className="mx-auto flex max-w-4xl items-center px-4 py-3">
+          <Link href="/" className="font-bold text-gray-100">
+            売場添削アプリ
+          </Link>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 pb-24">
         {children}
       </main>
+      <BottomNav unreadCount={unreadCount} displayName={displayName} />
     </div>
   );
 }

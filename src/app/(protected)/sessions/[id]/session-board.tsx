@@ -98,7 +98,7 @@ export default function SessionBoard({
     <div>
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold">
+          <h1 className="text-lg font-bold text-gray-100">
             {session.title || "無題のセッション"}
           </h1>
           <p className="text-xs text-gray-500">
@@ -109,13 +109,13 @@ export default function SessionBoard({
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              isOpen ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
+              isOpen ? "bg-green-900/50 text-green-300" : "bg-neutral-700 text-gray-300"
             }`}
           >
             {isOpen ? "進行中" : "クローズ済"}
           </span>
           {resolvedAt && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+            <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
               ✅ 対応済み
             </span>
           )}
@@ -167,18 +167,18 @@ export default function SessionBoard({
             <img
               src={shelfImagePublicUrl(session.images!.storage_path)}
               alt="改善前"
-              className="aspect-square w-full rounded-md border border-gray-200 object-cover"
+              className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
             />
           </div>
           <div>
-            <p className="mb-1 text-center text-xs font-medium text-blue-600">
+            <p className="mb-1 text-center text-xs font-medium text-blue-400">
               改善後
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={shelfImagePublicUrl(afterImage.storage_path)}
               alt="改善後"
-              className="aspect-square w-full rounded-md border border-blue-300 object-cover"
+              className="aspect-square w-full rounded-md border border-blue-800 object-cover"
             />
           </div>
         </div>

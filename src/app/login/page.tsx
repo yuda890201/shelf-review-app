@@ -45,8 +45,8 @@ function LoginForm() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-2 text-xl font-bold">売場添削アプリ</h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <h1 className="mb-2 text-xl font-bold text-gray-100">売場添削アプリ</h1>
+      <p className="mb-6 text-sm text-gray-400">
         お名前を入力して始めてください。
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -56,7 +56,7 @@ function LoginForm() {
           placeholder="例: 山田"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
         />
         <button
           type="submit"
@@ -66,7 +66,7 @@ function LoginForm() {
           {submitting ? "処理中..." : "はじめる"}
         </button>
         {errorMessage && (
-          <p className="text-sm text-red-600">{errorMessage}</p>
+          <p className="text-sm text-red-400">{errorMessage}</p>
         )}
       </form>
     </div>
