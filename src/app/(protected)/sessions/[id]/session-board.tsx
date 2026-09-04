@@ -649,9 +649,6 @@ export default function SessionBoard({
                     >
                       {TYPE_LABEL[c.comment_type]}
                     </span>
-                    <span className="text-gray-400">
-                      {c.author_id === currentUserId ? "自分" : "参加者"}
-                    </span>
                     <span className="ml-auto text-gray-400">
                       {new Date(c.created_at).toLocaleTimeString("ja-JP")}
                     </span>
