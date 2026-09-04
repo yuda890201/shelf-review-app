@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+const STORES = ["博多住吉通り店", "清川二丁目店"];
 
 const SHELF_CATEGORIES = [
   "センター1便",
@@ -15,41 +17,44 @@ const SHELF_CATEGORIES = [
   "その他",
 ];
 
+type Step = "store" | "category" | "categoryOther" | "camera" | "uploading";
+
 export default function NewSessionPage() {
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [storeName, setStoreName] = useState("");
-  const [shelfCategory, setShelfCategory] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [step, setStep] = useState<Step>("store");
+  const [store, setStore] = useState("");
+  const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
-    setPreview(selected ? URL.createObjectURL(selected) : null);
+  function selectStore(name: string) {
+    setStore(name);
+    setStep("category");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) {
-      setErrorMessage("売場写真を選択してください。");
+  function selectCategory(name: string) {
+    if (name === "その他") {
+      setStep("categoryOther");
       return;
     }
-    if (!shelfCategory) {
-      setErrorMessage("撮影した売場を選択してください。");
-      return;
-    }
-    const finalCategory =
-      shelfCategory === "その他" ? customCategory.trim() : shelfCategory;
-    if (!finalCategory) {
-      setErrorMessage("「その他」のタイトルを入力してください。");
-      return;
-    }
+    setCategory(name);
+    setStep("camera");
+  }
 
-    setSubmitting(true);
+  function confirmCustomCategory() {
+    const trimmed = customCategory.trim();
+    if (!trimmed) return;
+    setCategory(trimmed);
+    setStep("camera");
+  }
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+
+    setStep("uploading");
     setErrorMessage("");
 
     const supabase = createClient();
@@ -59,7 +64,7 @@ export default function NewSessionPage() {
 
     if (!user) {
       setErrorMessage("ログインが必要です。");
-      setSubmitting(false);
+      setStep("camera");
       return;
     }
 
@@ -77,8 +82,8 @@ export default function NewSessionPage() {
         .insert({
           storage_path: storagePath,
           uploaded_by: user.id,
-          store_name: storeName || null,
-          shelf_category: finalCategory,
+          store_name: store,
+          shelf_category: category,
         })
         .select()
         .single();
@@ -88,7 +93,7 @@ export default function NewSessionPage() {
         .from("sessions")
         .insert({
           image_id: image.id,
-          title: title || finalCategory,
+          title: `${store} ${category}`,
           facilitator_id: user.id,
           status: "open",
         })
@@ -99,103 +104,130 @@ export default function NewSessionPage() {
       router.push(`/sessions/${session.id}`);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "エラーが発生しました。");
-      setSubmitting(false);
+      setStep("camera");
     }
   }
 
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="mb-4 text-lg font-bold">新規セッション作成</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {step === "store" && (
         <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">
-            売場写真
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            required
-            className="block w-full text-sm"
-          />
-          {preview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="プレビュー"
-              className="mt-2 max-h-64 rounded-md border border-gray-200 object-contain"
-            />
-          )}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">
-            撮影した売場
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {SHELF_CATEGORIES.map((category) => (
+          <h1 className="mb-4 text-lg font-bold">店舗を選んでください</h1>
+          <div className="flex flex-col gap-3">
+            {STORES.map((name) => (
               <button
-                key={category}
+                key={name}
                 type="button"
-                onClick={() => setShelfCategory(category)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  shelfCategory === category
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-300 text-gray-700"
-                }`}
+                onClick={() => selectStore(name)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-800 active:bg-blue-50"
               >
-                {category}
+                {name}
               </button>
             ))}
           </div>
-          {shelfCategory === "その他" && (
-            <input
-              type="text"
-              value={customCategory}
-              onChange={(e) => setCustomCategory(e.target.value)}
-              placeholder="売場名を入力(例: 雑誌コーナー)"
-              className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
+        </div>
+      )}
+
+      {step === "category" && (
+        <div>
+          <h1 className="mb-1 text-lg font-bold">撮影する売場を選んでください</h1>
+          <p className="mb-4 text-xs text-gray-500">店舗: {store}</p>
+          <div className="grid grid-cols-2 gap-3">
+            {SHELF_CATEGORIES.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => selectCategory(name)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-4 text-sm font-semibold text-gray-800 active:bg-blue-50"
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("store")}
+            className="mt-4 text-xs text-gray-500 underline"
+          >
+            店舗選択に戻る
+          </button>
+        </div>
+      )}
+
+      {step === "categoryOther" && (
+        <div>
+          <h1 className="mb-1 text-lg font-bold">売場の名前を入力してください</h1>
+          <p className="mb-4 text-xs text-gray-500">店舗: {store}</p>
+          <input
+            type="text"
+            autoFocus
+            value={customCategory}
+            onChange={(e) => setCustomCategory(e.target.value)}
+            placeholder="例: 雑誌コーナー"
+            className="mb-3 w-full rounded-md border border-gray-300 px-3 py-3 text-base"
+          />
+          <button
+            type="button"
+            onClick={confirmCustomCategory}
+            disabled={!customCategory.trim()}
+            className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
+          >
+            次へ
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep("category")}
+            className="mt-4 text-xs text-gray-500 underline"
+          >
+            売場選択に戻る
+          </button>
+        </div>
+      )}
+
+      {step === "camera" && (
+        <div>
+          <h1 className="mb-1 text-lg font-bold">写真を撮影してください</h1>
+          <p className="mb-6 text-xs text-gray-500">
+            店舗: {store} / 売場: {category}
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileSelected}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full rounded-lg bg-blue-600 px-4 py-6 text-lg font-bold text-white active:bg-blue-700"
+          >
+            📷 カメラを起動
+          </button>
+          {errorMessage && (
+            <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
           )}
+          <button
+            type="button"
+            onClick={() => setStep("category")}
+            className="mt-4 text-xs text-gray-500 underline"
+          >
+            売場選択に戻る
+          </button>
         </div>
+      )}
 
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">
-            セッションタイトル(任意、未入力なら撮影した売場の名前になります)
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="例: 〇〇店 スナック棚 意見出し"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
+      {step === "uploading" && (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <p className="text-base font-semibold text-gray-700">
+            アップロード中...
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {store} / {category}
+          </p>
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">
-            店舗名(任意)
-          </label>
-          <input
-            type="text"
-            value={storeName}
-            onChange={(e) => setStoreName(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-
-        {errorMessage && (
-          <p className="text-sm text-red-600">{errorMessage}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {submitting ? "作成中..." : "セッションを作成"}
-        </button>
-      </form>
+      )}
     </div>
   );
 }
