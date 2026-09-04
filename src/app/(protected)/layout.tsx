@@ -12,6 +12,16 @@ export default async function ProtectedLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  let displayName: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .single();
+    displayName = profile?.display_name ?? null;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-gray-200 bg-white">
@@ -31,7 +41,7 @@ export default async function ProtectedLayout({
             </Link>
           </nav>
           <div className="flex items-center gap-3 text-sm text-gray-500">
-            <span>{user?.email}</span>
+            <span>{displayName}</span>
             <SignOutButton />
           </div>
         </div>
