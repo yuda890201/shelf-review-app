@@ -25,5 +25,11 @@
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",
     "typescript": "^5"
-  }
+  },
+  "browserslist": [
+    "defaults",
+    "iOS >= 11",
+    "Safari >= 11",
+    "not dead"
+  ]
 }
