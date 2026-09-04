@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { ReactionRow, ReactionType, SessionWithImage } from "@/lib/types";
+import SessionCommentModal from "./session-comment-modal";
 
 type SortMode = "new" | "needs_work";
 
@@ -25,6 +26,7 @@ export default function Feed({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [poppingId, setPoppingId] = useState<string | null>(null);
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const lastTapRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -121,6 +123,27 @@ export default function Feed({
       lastTapRef.current[sessionId] = now;
     }
   }
+
+  async function handleShare(session: SessionWithImage) {
+    const url = `${window.location.origin}/sessions/${session.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: session.title || "売場添削アプリ",
+          url,
+        });
+      } catch {
+        // ユーザーがキャンセルした場合などは何もしない
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      alert("リンクをコピーしました");
+    } else {
+      alert(url);
+    }
+  }
+
+  const openSession = initialSessions.find((s) => s.id === openSessionId) ?? null;
 
   const stores = useMemo(
     () =>
@@ -320,6 +343,25 @@ export default function Feed({
                   </button>
                 </div>
 
+                <div className="mb-2 flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setOpenSessionId(session.id)}
+                    className="flex items-center gap-1 text-gray-600"
+                  >
+                    <span className="text-xl leading-none">💬</span>
+                    <span className="text-xs">{commentCount}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShare(session)}
+                    className="text-xl leading-none text-gray-600"
+                    aria-label="共有"
+                  >
+                    📤
+                  </button>
+                </div>
+
                 {total > 0 && (
                   <div className="mb-2">
                     <div className="flex h-2 overflow-hidden rounded-full bg-gray-100">
@@ -338,18 +380,19 @@ export default function Feed({
                     </div>
                   </div>
                 )}
-
-                <Link
-                  href={`/sessions/${session.id}`}
-                  className="text-xs text-gray-500 hover:underline"
-                >
-                  コメントを見る({commentCount}件)
-                </Link>
               </div>
             </article>
           );
         })}
       </div>
+
+      {openSession && (
+        <SessionCommentModal
+          session={openSession}
+          currentUserId={currentUserId}
+          onClose={() => setOpenSessionId(null)}
+        />
+      )}
     </div>
   );
 }
