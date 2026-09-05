@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
@@ -45,7 +46,7 @@ export default function SessionCommentModal({
 
   if (!session.images) return null;
 
-  return (
+  return createPortal(
     <dialog
       ref={dialogRef}
       onClose={onClose}
@@ -90,6 +91,7 @@ export default function SessionCommentModal({
           )}
         </div>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

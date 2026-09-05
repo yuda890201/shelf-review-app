@@ -61,3 +61,16 @@ body {
 .slide-up-sheet {
   animation: slide-up-sheet 0.25s ease-out;
 }
+
+@keyframes slide-down-sheet {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.slide-down-sheet {
+  animation: slide-down-sheet 0.25s ease-out;
+}

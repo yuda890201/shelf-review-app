@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
@@ -519,16 +520,18 @@ export default function PinBoard({
         )}
       </div>
 
-      {pendingPin && (
-        <dialog
-          ref={composerDialogRef}
-          onClose={() => setPendingPin(null)}
-          className="fixed inset-x-0 bottom-0 z-30 m-0 flex max-h-[58vh] w-full max-w-none flex-col rounded-t-2xl border-0 border-t border-t-neutral-700 p-0 shadow-lg backdrop:bg-transparent"
-          style={{
-            background: "rgba(23,23,23,0.92)",
-            maxHeight: viewportHeight ? viewportHeight * 0.58 : undefined,
-          }}
-        >
+      {pendingPin &&
+        createPortal(
+          <dialog
+            ref={composerDialogRef}
+            onClose={() => setPendingPin(null)}
+            className="slide-down-sheet fixed inset-x-0 top-0 z-30 m-0 flex max-h-[58vh] w-full max-w-none flex-col rounded-b-2xl border-0 border-b border-b-neutral-700 p-0 shadow-lg backdrop:bg-transparent"
+            style={{
+              background: "rgba(23,23,23,0.92)",
+              maxHeight: viewportHeight ? viewportHeight * 0.58 : undefined,
+              paddingTop: "env(safe-area-inset-top)",
+            }}
+          >
           <form
             id="pin-comment-form"
             ref={composerScrollRef}
@@ -604,10 +607,7 @@ export default function PinBoard({
             </div>
           </form>
 
-          <div
-            className="mx-auto flex w-full max-w-lg shrink-0 gap-2 border-t border-neutral-700 px-4 pt-3"
-            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-          >
+          <div className="mx-auto flex w-full max-w-lg shrink-0 gap-2 border-t border-neutral-700 px-4 pb-3 pt-3">
             <button
               type="button"
               onClick={() => setPendingPin(null)}
@@ -624,8 +624,9 @@ export default function PinBoard({
               投稿
             </button>
           </div>
-        </dialog>
-      )}
+          </dialog>,
+          document.body,
+        )}
 
       {tagManagerOpen && (
         <TagManagerModal

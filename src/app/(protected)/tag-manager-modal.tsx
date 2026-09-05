@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentType, TagRow } from "@/lib/types";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
@@ -86,7 +87,7 @@ export default function TagManagerModal({
 
   const sorted = [...tags].sort((a, b) => b.use_count - a.use_count);
 
-  return (
+  return createPortal(
     <dialog
       ref={dialogRef}
       onClose={onClose}
@@ -195,6 +196,7 @@ export default function TagManagerModal({
           ))}
         </ul>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }
