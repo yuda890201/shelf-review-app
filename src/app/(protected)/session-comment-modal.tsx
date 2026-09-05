@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import PinBoard from "./sessions/[id]/pin-board";
 
 export default function SessionCommentModal({
@@ -18,12 +19,7 @@ export default function SessionCommentModal({
 }) {
   const [comments, setComments] = useState<CommentRow[] | null>(null);
 
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   useEffect(() => {
     let cancelled = false;

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
 import PinChip from "@/components/pin-chip";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import TagManagerModal from "./tag-manager-modal";
 
 type PendingPin = { x: number; y: number };
@@ -217,17 +218,7 @@ export default function PinBoard({
   }, [session.id]);
 
   const composerOpen = !!pendingPin;
-  useEffect(() => {
-    if (!composerOpen) return;
-    // 入力欄を開いている間は背景のスクロールを止める。ロックしないと
-    // 背景ページのスクロール位置が動いてブラウザのアドレスバーが
-    // 再表示され、写真がさらに隠れる原因になる。
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [composerOpen]);
+  useBodyScrollLock(composerOpen);
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!isOpen) return;
