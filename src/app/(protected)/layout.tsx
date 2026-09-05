@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/bottom-nav";
 
@@ -61,13 +60,6 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-black">
-      <header className="sticky top-0 z-20 border-b border-neutral-800 bg-black">
-        <div className="mx-auto flex max-w-4xl items-center px-4 py-3">
-          <Link href="/" className="font-bold text-gray-100">
-            売場添削アプリ
-          </Link>
-        </div>
-      </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 pb-24">
         {children}
       </main>

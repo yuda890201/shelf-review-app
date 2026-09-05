@@ -209,16 +209,6 @@ export default function Feed({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-100">フィード</h1>
-        <Link
-          href="/sessions/new"
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-        >
-          + 新規セッション
-        </Link>
-      </div>
-
       {initialSessions.length > 0 && (
         <div className="mx-auto mb-4 flex max-w-md flex-wrap gap-2">
           <select
