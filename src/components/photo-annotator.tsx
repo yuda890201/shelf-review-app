@@ -3,13 +3,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import PinChip from "@/components/pin-chip";
 import PinObjectIcon, { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import PinObjectLine from "@/components/pin-object-line";
 import type { PinObjectKind } from "@/lib/types";
 
 type PendingPin = { x: number; y: number };
+type PendingLine = { x1: number; y1: number; x2: number; y2: number };
 
 const BASE_WIDTH_PCT = 0.16;
 const BASE_HEIGHT_PCT = 0.045;
 const PENDING_COLOR = "#3b82f6";
+const DRAG_THRESHOLD_PX = 10;
 const FRAME_COLORS = [
   "#ef4444",
   "#f97316",
@@ -44,6 +47,8 @@ export type AnnotatorPin = {
   color: string;
   body: string;
   object_kind?: PinObjectKind | null;
+  end_position_x?: number | null;
+  end_position_y?: number | null;
 };
 
 const OBJECT_KINDS: PinObjectKind[] = ["move", "widen", "narrow"];
@@ -62,6 +67,8 @@ export default function PhotoAnnotator({
   onSubmit: (pin: {
     position_x: number;
     position_y: number;
+    end_position_x: number | null;
+    end_position_y: number | null;
     width_pct: number;
     height_pct: number;
     rotation_deg: number;
@@ -77,12 +84,15 @@ export default function PhotoAnnotator({
   const composerRef = useRef<HTMLDivElement>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const [pendingPin, setPendingPin] = useState<PendingPin | null>(null);
+  const [draftLine, setDraftLine] = useState<PendingLine | null>(null);
+  const [pendingLine, setPendingLine] = useState<PendingLine | null>(null);
   const [body, setBody] = useState("");
   const [frameScale, setFrameScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const gestureCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const el = imageRef.current;
@@ -96,23 +106,57 @@ export default function PhotoAnnotator({
     return () => observer.disconnect();
   }, []);
 
-  const composerOpen = !!pendingPin;
+  const composerOpen = !!pendingPin || !!pendingLine;
   useEffect(() => {
     if (composerOpen) {
       composerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [composerOpen]);
 
-  function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (readOnly || !currentUserId) return;
+  function handleContainerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (readOnly || !currentUserId || pendingPin || pendingLine) return;
     const rect = imageRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    setPendingPin({ x, y });
-    setBody("");
-    setFrameScale(1);
-    setRotation(0);
+    e.preventDefault();
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startX = (startClientX - rect.left) / rect.width;
+    const startY = (startClientY - rect.top) / rect.height;
+    let moved = false;
+    let endX = startX;
+    let endY = startY;
+
+    function onMove(ev: PointerEvent) {
+      const dx = ev.clientX - startClientX;
+      const dy = ev.clientY - startClientY;
+      if (!moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) moved = true;
+      if (moved) {
+        const r = imageRef.current?.getBoundingClientRect();
+        if (!r) return;
+        endX = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+        endY = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+        setDraftLine({ x1: startX, y1: startY, x2: endX, y2: endY });
+      }
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      gestureCleanupRef.current = null;
+      setDraftLine(null);
+      if (moved) {
+        setPendingLine({ x1: startX, y1: startY, x2: endX, y2: endY });
+      } else {
+        setPendingPin({ x: startX, y: startY });
+        setBody("");
+        setFrameScale(1);
+        setRotation(0);
+      }
+    }
+
+    gestureCleanupRef.current = onUp;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 
   function distanceFromPinCenter(pin: PendingPin, clientX: number, clientY: number) {
@@ -171,6 +215,7 @@ export default function PhotoAnnotator({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      gestureCleanupRef.current?.();
     };
   }, []);
 
@@ -182,6 +227,8 @@ export default function PhotoAnnotator({
     const result = await onSubmit({
       position_x: pendingPin.x,
       position_y: pendingPin.y,
+      end_position_x: null,
+      end_position_y: null,
       width_pct: BASE_WIDTH_PCT * frameScale,
       height_pct: BASE_HEIGHT_PCT * frameScale,
       rotation_deg: rotation,
@@ -198,16 +245,18 @@ export default function PhotoAnnotator({
     setSubmitting(false);
   }
 
-  async function submitObject(kind: PinObjectKind) {
-    if (!pendingPin) return;
+  async function submitLineObject(kind: PinObjectKind) {
+    if (!pendingLine) return;
     setSubmitting(true);
     const id = crypto.randomUUID();
     const result = await onSubmit({
-      position_x: pendingPin.x,
-      position_y: pendingPin.y,
-      width_pct: BASE_WIDTH_PCT * frameScale,
-      height_pct: BASE_HEIGHT_PCT * frameScale,
-      rotation_deg: rotation,
+      position_x: pendingLine.x1,
+      position_y: pendingLine.y1,
+      end_position_x: pendingLine.x2,
+      end_position_y: pendingLine.y2,
+      width_pct: 0,
+      height_pct: 0,
+      rotation_deg: 0,
       color: colorForId(id),
       body: "",
       object_kind: kind,
@@ -215,17 +264,26 @@ export default function PhotoAnnotator({
     if (result && "error" in result && result.error) {
       alert(`投稿に失敗しました: ${result.error}`);
     } else {
-      setPendingPin(null);
-      setBody("");
+      setPendingLine(null);
     }
     setSubmitting(false);
   }
+
+  const textPins = pins.filter((p) => !p.object_kind);
+  const objectPins = pins.filter(
+    (p): p is AnnotatorPin & {
+      object_kind: PinObjectKind;
+      end_position_x: number;
+      end_position_y: number;
+    } => !!p.object_kind && p.end_position_x != null && p.end_position_y != null,
+  );
 
   return (
     <div>
       <div
         ref={imageRef}
-        onClick={handleImageClick}
+        onPointerDown={handleContainerPointerDown}
+        style={!readOnly && currentUserId ? { touchAction: "none" } : undefined}
         className={`relative w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 ${
           readOnly ? "" : "cursor-crosshair"
         }`}
@@ -239,7 +297,7 @@ export default function PhotoAnnotator({
         />
 
         {imgSize.width > 0 &&
-          pins.map((p) => (
+          textPins.map((p) => (
             <PinChip
               key={p.id}
               x={p.position_x}
@@ -249,7 +307,6 @@ export default function PhotoAnnotator({
               rotationDeg={p.rotation_deg}
               color={p.color}
               text={p.body}
-              objectKind={p.object_kind}
               isActive={activeId === p.id}
               onClick={
                 readOnly
@@ -261,6 +318,48 @@ export default function PhotoAnnotator({
               }
             />
           ))}
+
+        {imgSize.width > 0 &&
+          objectPins.map((p) => (
+            <PinObjectLine
+              key={p.id}
+              x1={p.position_x}
+              y1={p.position_y}
+              x2={p.end_position_x}
+              y2={p.end_position_y}
+              containerWidth={imgSize.width}
+              containerHeight={imgSize.height}
+              kind={p.object_kind}
+              color={p.color}
+            />
+          ))}
+
+        {draftLine && imgSize.width > 0 && (
+          <PinObjectLine
+            x1={draftLine.x1}
+            y1={draftLine.y1}
+            x2={draftLine.x2}
+            y2={draftLine.y2}
+            containerWidth={imgSize.width}
+            containerHeight={imgSize.height}
+            kind="move"
+            color={PENDING_COLOR}
+            dashed
+          />
+        )}
+
+        {pendingLine && imgSize.width > 0 && (
+          <PinObjectLine
+            x1={pendingLine.x1}
+            y1={pendingLine.y1}
+            x2={pendingLine.x2}
+            y2={pendingLine.y2}
+            containerWidth={imgSize.width}
+            containerHeight={imgSize.height}
+            kind="move"
+            color={PENDING_COLOR}
+          />
+        )}
 
         {pendingPin && imgSize.width > 0 && (
           <div
@@ -310,24 +409,26 @@ export default function PhotoAnnotator({
         )}
       </div>
 
-      {!readOnly && !pendingPin && hint && (
-        <p className="mt-2 text-xs text-gray-500">{hint}</p>
+      {!readOnly && !composerOpen && hint && (
+        <p className="mt-2 text-xs text-gray-500">
+          {hint}
+          <br />
+          ドラッグで始点→終点を指定すると「移動/フェイス拡げる/縮める」を配置できます。
+        </p>
       )}
 
-      {pendingPin && (
+      {pendingLine && (
         <div
           ref={composerRef}
           className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
         >
-          <p className="text-xs text-gray-400">
-            よくある指示はアイコンで素早く:
-          </p>
+          <p className="text-xs text-gray-400">どのオブジェクトを配置しますか?</p>
           <div className="flex gap-2">
             {OBJECT_KINDS.map((kind) => (
               <button
                 key={kind}
                 type="button"
-                onClick={() => submitObject(kind)}
+                onClick={() => submitLineObject(kind)}
                 disabled={submitting}
                 className="flex flex-1 flex-col items-center gap-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-gray-200 disabled:opacity-50"
               >
@@ -338,9 +439,22 @@ export default function PhotoAnnotator({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => setPendingLine(null)}
+            disabled={submitting}
+            className="rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200 disabled:opacity-50"
+          >
+            キャンセル
+          </button>
+        </div>
+      )}
 
-          <p className="text-center text-[11px] text-gray-500">または文章で入力:</p>
-
+      {pendingPin && (
+        <div
+          ref={composerRef}
+          className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
+        >
           <form
             id={formId}
             onSubmit={handleSubmit}

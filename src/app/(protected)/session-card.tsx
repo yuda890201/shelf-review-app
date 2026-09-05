@@ -152,7 +152,14 @@ export default function SessionCard({
     type: CommentType;
     body: string;
     objectKind: PinObjectKind | null;
-    pin: { x: number; y: number; frameScale: number; rotationDeg: number };
+    pin: {
+      x: number;
+      y: number;
+      frameScale: number;
+      rotationDeg: number;
+      endX: number | null;
+      endY: number | null;
+    };
   }) {
     if (!currentUserId) return { error: "ログインが必要です。" };
     const { data, error } = await submitComment({

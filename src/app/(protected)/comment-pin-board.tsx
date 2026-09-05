@@ -3,13 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import PinChip from "@/components/pin-chip";
 import PinObjectIcon, { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import PinObjectLine from "@/components/pin-object-line";
 import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT } from "@/lib/comment-pin";
 import type { CommentRow, CommentType, PinObjectKind, TagRow } from "@/lib/types";
 import TagManagerModal from "./tag-manager-modal";
 
 const OBJECT_KINDS: PinObjectKind[] = ["move", "widen", "narrow"];
+const DRAG_THRESHOLD_PX = 10;
+const PENDING_COLOR = "#3b82f6";
 
 type PendingPin = { x: number; y: number };
+type PendingLine = { x1: number; y1: number; x2: number; y2: number };
 
 const TYPE_LABEL: Record<CommentType, string> = {
   good: "良い点",
@@ -43,7 +47,14 @@ export default function CommentPinBoard({
     type: CommentType;
     body: string;
     objectKind: PinObjectKind | null;
-    pin: { x: number; y: number; frameScale: number; rotationDeg: number };
+    pin: {
+      x: number;
+      y: number;
+      frameScale: number;
+      rotationDeg: number;
+      endX: number | null;
+      endY: number | null;
+    };
   }) => Promise<{ error?: string } | void>;
   stickyHeader?: boolean;
   hint?: string;
@@ -56,6 +67,8 @@ export default function CommentPinBoard({
   const composerRef = useRef<HTMLDivElement>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const [pendingPin, setPendingPin] = useState<PendingPin | null>(null);
+  const [draftLine, setDraftLine] = useState<PendingLine | null>(null);
+  const [pendingLine, setPendingLine] = useState<PendingLine | null>(null);
   const [commentType, setCommentType] = useState<CommentType>("bad");
   const [body, setBody] = useState("");
   const [frameScale, setFrameScale] = useState(1);
@@ -64,6 +77,7 @@ export default function CommentPinBoard({
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const gestureCleanupRef = useRef<(() => void) | null>(null);
   const pendingTapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -78,7 +92,7 @@ export default function CommentPinBoard({
     return () => observer.disconnect();
   }, []);
 
-  const composerOpen = !!pendingPin;
+  const composerOpen = !!pendingPin || !!pendingLine;
   useEffect(() => {
     if (composerOpen) {
       composerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -97,11 +111,11 @@ export default function CommentPinBoard({
     setRotation(0);
   }
 
-  function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
+  function handleTap(clientX: number, clientY: number) {
     if (!canComment) return;
 
     if (!tapDelayMs) {
-      openComposerAt(e.clientX, e.clientY);
+      openComposerAt(clientX, clientY);
       return;
     }
 
@@ -112,11 +126,52 @@ export default function CommentPinBoard({
       return;
     }
 
-    const { clientX, clientY } = e;
     pendingTapRef.current = setTimeout(() => {
       pendingTapRef.current = null;
       openComposerAt(clientX, clientY);
     }, tapDelayMs);
+  }
+
+  function handleContainerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!canComment || pendingPin || pendingLine) return;
+    const rect = imageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startX = (startClientX - rect.left) / rect.width;
+    const startY = (startClientY - rect.top) / rect.height;
+    let moved = false;
+    let endX = startX;
+    let endY = startY;
+
+    function onMove(ev: PointerEvent) {
+      const dx = ev.clientX - startClientX;
+      const dy = ev.clientY - startClientY;
+      if (!moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) moved = true;
+      if (moved) {
+        const r = imageRef.current?.getBoundingClientRect();
+        if (!r) return;
+        endX = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+        endY = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+        setDraftLine({ x1: startX, y1: startY, x2: endX, y2: endY });
+      }
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      gestureCleanupRef.current = null;
+      setDraftLine(null);
+      if (moved) {
+        setPendingLine({ x1: startX, y1: startY, x2: endX, y2: endY });
+      } else {
+        handleTap(startClientX, startClientY);
+      }
+    }
+
+    gestureCleanupRef.current = onUp;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 
   useEffect(() => {
@@ -181,28 +236,56 @@ export default function CommentPinBoard({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      gestureCleanupRef.current?.();
     };
   }, []);
 
-  async function submit(
-    text: string,
-    type: CommentType,
-    objectKind: PinObjectKind | null = null,
-  ) {
+  async function submit(text: string, type: CommentType) {
     if (!pendingPin || !currentUserId) return;
-    if (!objectKind && !text.trim()) return;
+    if (!text.trim()) return;
     setSubmitting(true);
     const result = await onSubmit({
       type,
       body: text,
-      objectKind,
-      pin: { x: pendingPin.x, y: pendingPin.y, frameScale, rotationDeg: rotation },
+      objectKind: null,
+      pin: {
+        x: pendingPin.x,
+        y: pendingPin.y,
+        frameScale,
+        rotationDeg: rotation,
+        endX: null,
+        endY: null,
+      },
     });
     if (result && "error" in result && result.error) {
       alert(`投稿に失敗しました: ${result.error}`);
     } else {
       setPendingPin(null);
       setBody("");
+    }
+    setSubmitting(false);
+  }
+
+  async function submitLineObject(kind: PinObjectKind) {
+    if (!pendingLine || !currentUserId) return;
+    setSubmitting(true);
+    const result = await onSubmit({
+      type: commentType,
+      body: "",
+      objectKind: kind,
+      pin: {
+        x: pendingLine.x1,
+        y: pendingLine.y1,
+        frameScale: 1,
+        rotationDeg: 0,
+        endX: pendingLine.x2,
+        endY: pendingLine.y2,
+      },
+    });
+    if (result && "error" in result && result.error) {
+      alert(`投稿に失敗しました: ${result.error}`);
+    } else {
+      setPendingLine(null);
     }
     setSubmitting(false);
   }
@@ -216,9 +299,14 @@ export default function CommentPinBoard({
     await submit(text, commentType);
   }
 
-  async function handleSubmitObject(kind: PinObjectKind) {
-    await submit("", commentType, kind);
-  }
+  const textPins = pins.filter((c) => !c.object_kind);
+  const objectPins = pins.filter(
+    (c): c is CommentRow & {
+      object_kind: PinObjectKind;
+      end_position_x: number;
+      end_position_y: number;
+    } => !!c.object_kind && c.end_position_x != null && c.end_position_y != null,
+  );
 
   return (
     <div>
@@ -230,12 +318,17 @@ export default function CommentPinBoard({
         }
       >
         {canComment && hint && (
-          <p className="mb-2 text-xs text-gray-500">{hint}</p>
+          <p className="mb-2 text-xs text-gray-500">
+            {hint}
+            <br />
+            ドラッグで始点→終点を指定すると「移動/フェイス拡げる/縮める」を配置できます。
+          </p>
         )}
 
         <div
           ref={imageRef}
-          onClick={handleImageClick}
+          onPointerDown={handleContainerPointerDown}
+          style={canComment ? { touchAction: "none" } : undefined}
           className={`relative w-full overflow-hidden bg-neutral-800 ${
             stickyHeader ? "rounded-lg border border-neutral-800" : ""
           } ${canComment ? "cursor-crosshair" : ""}`}
@@ -249,7 +342,7 @@ export default function CommentPinBoard({
           />
 
           {imgSize.width > 0 &&
-            pins.map((c) => (
+            textPins.map((c) => (
               <PinChip
                 key={c.id}
                 x={c.position_x}
@@ -259,7 +352,6 @@ export default function CommentPinBoard({
                 rotationDeg={c.rotation_deg}
                 color={c.color}
                 text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
-                objectKind={c.object_kind}
                 isActive={activeCommentId === c.id}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -267,6 +359,48 @@ export default function CommentPinBoard({
                 }}
               />
             ))}
+
+          {imgSize.width > 0 &&
+            objectPins.map((c) => (
+              <PinObjectLine
+                key={c.id}
+                x1={c.position_x}
+                y1={c.position_y}
+                x2={c.end_position_x}
+                y2={c.end_position_y}
+                containerWidth={imgSize.width}
+                containerHeight={imgSize.height}
+                kind={c.object_kind}
+                color={c.color}
+              />
+            ))}
+
+          {draftLine && imgSize.width > 0 && (
+            <PinObjectLine
+              x1={draftLine.x1}
+              y1={draftLine.y1}
+              x2={draftLine.x2}
+              y2={draftLine.y2}
+              containerWidth={imgSize.width}
+              containerHeight={imgSize.height}
+              kind="move"
+              color={PENDING_COLOR}
+              dashed
+            />
+          )}
+
+          {pendingLine && imgSize.width > 0 && (
+            <PinObjectLine
+              x1={pendingLine.x1}
+              y1={pendingLine.y1}
+              x2={pendingLine.x2}
+              y2={pendingLine.y2}
+              containerWidth={imgSize.width}
+              containerHeight={imgSize.height}
+              kind="move"
+              color={PENDING_COLOR}
+            />
+          )}
 
           {pendingPin && imgSize.width > 0 && (
             <div
@@ -319,6 +453,39 @@ export default function CommentPinBoard({
         </div>
       </div>
 
+      {pendingLine && (
+        <div
+          ref={composerRef}
+          className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-300 bg-neutral-100 p-3"
+        >
+          <p className="text-xs text-gray-500">どのオブジェクトを配置しますか?</p>
+          <div className="flex gap-2">
+            {OBJECT_KINDS.map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => submitLineObject(kind)}
+                disabled={submitting}
+                className="flex flex-1 flex-col items-center gap-1 rounded-md border border-neutral-300 bg-white px-2 py-2 text-gray-700 disabled:opacity-50"
+              >
+                <PinObjectIcon kind={kind} className="h-6 w-6" />
+                <span className="text-[10px] leading-tight">
+                  {OBJECT_KIND_LABEL[kind]}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPendingLine(null)}
+            disabled={submitting}
+            className="rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-gray-700 disabled:opacity-50"
+          >
+            キャンセル
+          </button>
+        </div>
+      )}
+
       {pendingPin && (
         <div
           ref={composerRef}
@@ -348,25 +515,7 @@ export default function CommentPinBoard({
               ))}
             </div>
 
-            <p className="text-xs text-gray-500">よくある指示はアイコンで素早く:</p>
-            <div className="flex gap-2">
-              {OBJECT_KINDS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => handleSubmitObject(kind)}
-                  disabled={submitting}
-                  className="flex flex-1 flex-col items-center gap-1 rounded-md border border-neutral-300 bg-white px-2 py-2 text-gray-700 disabled:opacity-50"
-                >
-                  <PinObjectIcon kind={kind} className="h-6 w-6" />
-                  <span className="text-[10px] leading-tight">
-                    {OBJECT_KIND_LABEL[kind]}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <p className="text-center text-[11px] text-gray-500">または文章で入力:</p>
+            <p className="text-center text-[11px] text-gray-500">よく使う指摘:</p>
 
             <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
               {[...tags[commentType]]

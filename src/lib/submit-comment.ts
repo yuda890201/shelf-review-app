@@ -21,7 +21,14 @@ export async function submitComment({
   type: CommentType;
   body: string;
   objectKind?: PinObjectKind | null;
-  pin: { x: number; y: number; frameScale: number; rotationDeg: number };
+  pin: {
+    x: number;
+    y: number;
+    frameScale: number;
+    rotationDeg: number;
+    endX?: number | null;
+    endY?: number | null;
+  };
 }): Promise<{ data?: CommentRow; error?: string }> {
   const id = crypto.randomUUID();
   const newComment: CommentRow = {
@@ -30,6 +37,8 @@ export async function submitComment({
     image_id: imageId,
     position_x: pin.x,
     position_y: pin.y,
+    end_position_x: pin.endX ?? null,
+    end_position_y: pin.endY ?? null,
     comment_type: type,
     body: body.trim(),
     object_kind: objectKind,
@@ -47,6 +56,8 @@ export async function submitComment({
     image_id: newComment.image_id,
     position_x: newComment.position_x,
     position_y: newComment.position_y,
+    end_position_x: newComment.end_position_x,
+    end_position_y: newComment.end_position_y,
     comment_type: newComment.comment_type,
     body: newComment.body,
     object_kind: newComment.object_kind,

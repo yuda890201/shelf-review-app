@@ -173,6 +173,8 @@ export default function LayoutDetail({
   async function handleSubmitReferencePin(pin: {
     position_x: number;
     position_y: number;
+    end_position_x: number | null;
+    end_position_y: number | null;
     width_pct: number;
     height_pct: number;
     rotation_deg: number;
@@ -196,6 +198,8 @@ export default function LayoutDetail({
   async function handleSubmitCurrentPin(pin: {
     position_x: number;
     position_y: number;
+    end_position_x: number | null;
+    end_position_y: number | null;
     width_pct: number;
     height_pct: number;
     rotation_deg: number;

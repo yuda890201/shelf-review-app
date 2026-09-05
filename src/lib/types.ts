@@ -38,6 +38,8 @@ export type CommentRow = {
   rotation_deg: number;
   color: string;
   object_kind: PinObjectKind | null;
+  end_position_x: number | null;
+  end_position_y: number | null;
 };
 
 export type SessionWithImage = SessionRow & {
@@ -133,6 +135,8 @@ export type PinRow = {
   color: string;
   body: string;
   object_kind: PinObjectKind | null;
+  end_position_x: number | null;
+  end_position_y: number | null;
   author_id: string | null;
   created_at: string;
 };

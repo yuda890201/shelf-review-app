@@ -1,6 +1,3 @@
-import type { PinObjectKind } from "@/lib/types";
-import PinObjectIcon from "@/components/pin-object-icon";
-
 const TEXT_OUTLINE =
   "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 5px rgba(0,0,0,0.7)";
 
@@ -12,7 +9,6 @@ export default function PinChip({
   rotationDeg,
   color,
   text,
-  objectKind,
   onClick,
   isActive,
 }: {
@@ -23,7 +19,6 @@ export default function PinChip({
   rotationDeg: number;
   color: string;
   text: string;
-  objectKind?: PinObjectKind | null;
   onClick?: (e: React.MouseEvent) => void;
   isActive?: boolean;
 }) {
@@ -38,11 +33,7 @@ export default function PinChip({
     borderColor: color,
   };
 
-  const content = objectKind ? (
-    <div className="flex h-full w-full items-center justify-center p-0.5" style={{ color }}>
-      <PinObjectIcon kind={objectKind} className="h-full w-full" />
-    </div>
-  ) : (
+  const content = (
     <span className="marquee-track" style={{ animationDuration: `${duration}s` }}>
       {[0, 1].map((copy) => (
         <span
@@ -77,11 +68,12 @@ export default function PinChip({
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={(e) => e.stopPropagation()}
       style={style}
       className={`absolute z-10 overflow-hidden rounded border-2 bg-transparent ${
         isActive ? "ring-2 ring-blue-400" : ""
       }`}
-      title={objectKind ? undefined : text}
+      title={text}
     >
       {content}
     </button>
