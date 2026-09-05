@@ -588,10 +588,10 @@ export default function PinBoard({
 
       {pendingPin && (
         <div
-          className="fixed inset-x-0 bottom-0 z-30 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-neutral-700 shadow-lg"
+          className="fixed inset-x-0 bottom-0 z-30 flex max-h-[58vh] flex-col rounded-t-2xl border-t border-neutral-700 shadow-lg"
           style={{
             background: "rgba(23,23,23,0.92)",
-            maxHeight: viewportHeight ? viewportHeight * 0.92 : undefined,
+            maxHeight: viewportHeight ? viewportHeight * 0.58 : undefined,
           }}
         >
           <form
@@ -642,7 +642,6 @@ export default function PinBoard({
             </div>
 
             <textarea
-              autoFocus
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="気づいた点を入力..."
