@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { LayoutRow } from "@/lib/types";
+import type { LayoutRow, StoreRow } from "@/lib/types";
 import NewProductPicker from "./new-product-picker";
 
 export default async function NewProductsPage() {
@@ -10,6 +10,12 @@ export default async function NewProductsPage() {
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true })
     .returns<LayoutRow[]>();
+
+  const { data: stores } = await supabase
+    .from("stores")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .returns<StoreRow[]>();
 
   return (
     <div>
@@ -30,7 +36,7 @@ export default async function NewProductsPage() {
         </p>
       )}
 
-      <NewProductPicker layouts={layouts ?? []} />
+      <NewProductPicker layouts={layouts ?? []} stores={stores ?? []} />
     </div>
   );
 }

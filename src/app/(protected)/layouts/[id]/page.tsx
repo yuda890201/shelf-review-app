@@ -5,6 +5,7 @@ import type {
   LayoutReferencePhotoRow,
   LayoutRow,
   LayoutTaskRow,
+  StoreRow,
 } from "@/lib/types";
 import LayoutDetail from "./layout-detail";
 
@@ -51,12 +52,19 @@ export default async function LayoutDetailPage({
     .order("created_at", { ascending: true })
     .returns<LayoutTaskRow[]>();
 
+  const { data: stores } = await supabase
+    .from("stores")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .returns<StoreRow[]>();
+
   return (
     <LayoutDetail
       layout={layout}
       initialReferencePhotos={referencePhotos ?? []}
       initialCurrentPhotos={currentPhotos ?? []}
       initialTasks={tasks ?? []}
+      stores={stores ?? []}
       currentUserId={user?.id ?? null}
     />
   );

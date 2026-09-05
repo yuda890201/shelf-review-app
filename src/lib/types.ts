@@ -132,3 +132,17 @@ export type PinRow = {
   author_id: string | null;
   created_at: string;
 };
+
+export type StoreRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+};
+
+export type DeliveryTruckRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+};

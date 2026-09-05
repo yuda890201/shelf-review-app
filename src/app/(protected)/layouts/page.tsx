@@ -4,8 +4,8 @@ import type {
   LayoutReferencePhotoRow,
   LayoutRow,
   LayoutTaskRow,
+  StoreRow,
 } from "@/lib/types";
-import { STORES } from "@/lib/stores";
 import LayoutsList from "./layouts-list";
 
 export default async function LayoutsPage() {
@@ -35,6 +35,12 @@ export default async function LayoutsPage() {
     .select("*")
     .returns<LayoutTaskRow[]>();
 
+  const { data: stores } = await supabase
+    .from("stores")
+    .select("*")
+    .returns<StoreRow[]>();
+  const storeNames = (stores ?? []).map((s) => s.name);
+
   const latestReferenceByLayout: Record<string, LayoutReferencePhotoRow> = {};
   for (const row of referencePhotos ?? []) {
     if (!latestReferenceByLayout[row.layout_id]) {
@@ -43,7 +49,7 @@ export default async function LayoutsPage() {
   }
 
   const storeCoverageByLayout: Record<string, number> = {};
-  for (const store of STORES) {
+  for (const store of storeNames) {
     const seen = new Set<string>();
     for (const row of currentPhotos ?? []) {
       if (row.store_name === store && !seen.has(row.layout_id)) {
@@ -68,7 +74,7 @@ export default async function LayoutsPage() {
       latestReferenceByLayout={latestReferenceByLayout}
       storeCoverageByLayout={storeCoverageByLayout}
       openTaskCountByLayout={openTaskCountByLayout}
-      totalStores={STORES.length}
+      totalStores={storeNames.length}
     />
   );
 }

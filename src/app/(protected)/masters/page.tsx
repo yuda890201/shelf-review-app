@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { DeliveryTruckRow, StoreRow } from "@/lib/types";
-import NewSessionWizard from "./new-session-wizard";
+import MastersEditor from "./masters-editor";
 
-export default async function NewSessionPage() {
+export default async function MastersPage() {
   const supabase = await createClient();
 
   const { data: stores } = await supabase
@@ -17,5 +17,7 @@ export default async function NewSessionPage() {
     .order("sort_order", { ascending: true })
     .returns<DeliveryTruckRow[]>();
 
-  return <NewSessionWizard stores={stores ?? []} trucks={trucks ?? []} />;
+  return (
+    <MastersEditor initialStores={stores ?? []} initialTrucks={trucks ?? []} />
+  );
 }

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import { compressImage } from "@/lib/image";
-import { STORES } from "@/lib/stores";
 import type {
   LayoutCurrentPhotoRow,
   LayoutReferencePhotoRow,
@@ -12,6 +11,7 @@ import type {
   LayoutTaskRow,
   PinRow,
   Season,
+  StoreRow,
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 import PhotoAnnotator from "@/components/photo-annotator";
@@ -31,19 +31,21 @@ export default function LayoutDetail({
   initialReferencePhotos,
   initialCurrentPhotos,
   initialTasks,
+  stores,
   currentUserId,
 }: {
   layout: LayoutRow;
   initialReferencePhotos: LayoutReferencePhotoRow[];
   initialCurrentPhotos: LayoutCurrentPhotoRow[];
   initialTasks: LayoutTaskRow[];
+  stores: StoreRow[];
   currentUserId: string | null;
 }) {
   const supabase = createClient();
   const [referencePhotos, setReferencePhotos] = useState(initialReferencePhotos);
   const [currentPhotos, setCurrentPhotos] = useState(initialCurrentPhotos);
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedStore, setSelectedStore] = useState(STORES[0]);
+  const [selectedStore, setSelectedStore] = useState(stores[0]?.name ?? "");
   const [season, setSeason] = useState<Season>(guessCurrentSeason());
   const [year, setYear] = useState(new Date().getFullYear());
   const [uploadingReference, setUploadingReference] = useState(false);
@@ -401,18 +403,18 @@ export default function LayoutDetail({
       </div>
 
       <div className="mb-4 flex gap-2">
-        {STORES.map((store) => (
+        {stores.map(({ id, name }) => (
           <button
-            key={store}
+            key={id}
             type="button"
-            onClick={() => setSelectedStore(store)}
+            onClick={() => setSelectedStore(name)}
             className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
-              selectedStore === store
+              selectedStore === name
                 ? "border-blue-500 bg-blue-950/60 text-blue-300"
                 : "border-neutral-700 text-gray-400"
             }`}
           >
-            {store}
+            {name}
           </button>
         ))}
       </div>

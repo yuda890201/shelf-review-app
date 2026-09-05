@@ -4,17 +4,24 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
-import { STORES } from "@/lib/stores";
-import type { LayoutCurrentPhotoRow, LayoutRow } from "@/lib/types";
+import type { LayoutCurrentPhotoRow, LayoutRow, StoreRow } from "@/lib/types";
 
-export default function NewProductPicker({ layouts }: { layouts: LayoutRow[] }) {
+export default function NewProductPicker({
+  layouts,
+  stores,
+}: {
+  layouts: LayoutRow[];
+  stores: StoreRow[];
+}) {
   const router = useRouter();
   const supabase = createClient();
 
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>(
     layouts[0]?.id ?? "",
   );
-  const [selectedStore, setSelectedStore] = useState<string>(STORES[0]);
+  const [selectedStore, setSelectedStore] = useState<string>(
+    stores[0]?.name ?? "",
+  );
   const [photos, setPhotos] = useState<LayoutCurrentPhotoRow[]>([]);
 
   useEffect(() => {
@@ -58,18 +65,18 @@ export default function NewProductPicker({ layouts }: { layouts: LayoutRow[] }) 
       <section className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
         <h2 className="mb-2 text-sm font-bold text-gray-300">店舗を選択</h2>
         <div className="flex flex-wrap gap-2">
-          {STORES.map((store) => (
+          {stores.map(({ id, name }) => (
             <button
-              key={store}
+              key={id}
               type="button"
-              onClick={() => setSelectedStore(store)}
+              onClick={() => setSelectedStore(name)}
               className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                selectedStore === store
+                selectedStore === name
                   ? "border-blue-500 bg-blue-950/60 text-blue-300"
                   : "border-neutral-700 text-gray-400"
               }`}
             >
-              {store}
+              {name}
             </button>
           ))}
         </div>
