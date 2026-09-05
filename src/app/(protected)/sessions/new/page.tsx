@@ -4,9 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image";
+import { STORES } from "@/lib/stores";
 import LoadingOverlay from "@/components/loading-overlay";
-
-const STORES = ["博多住吉通り店", "清川二丁目店"];
 
 const SHELF_CATEGORIES = [
   "センター1便",

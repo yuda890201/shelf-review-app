@@ -66,6 +66,13 @@ export default function BottomNav({
             <p className="mb-3 text-sm font-semibold text-gray-100">
               {displayName ?? "ゲスト"}
             </p>
+            <Link
+              href="/layouts"
+              onClick={() => setProfileOpen(false)}
+              className="mb-2 block w-full rounded-md border border-neutral-700 px-3 py-2 text-center text-sm text-gray-200 active:bg-neutral-800"
+            >
+              🏬 本部レイアウト比較
+            </Link>
             <div className="mb-2">
               <PushNotificationToggle userId={userId} />
             </div>

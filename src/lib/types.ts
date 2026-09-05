@@ -78,3 +78,42 @@ export type PushSubscriptionRow = {
   auth: string;
   created_at: string;
 };
+
+export type Season = "spring" | "autumn";
+
+export type LayoutRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+};
+
+export type LayoutReferencePhotoRow = {
+  id: string;
+  layout_id: string;
+  season: Season;
+  year: number;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
+export type LayoutCurrentPhotoRow = {
+  id: string;
+  layout_id: string;
+  store_name: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
+export type LayoutTaskRow = {
+  id: string;
+  layout_id: string;
+  store_name: string;
+  body: string;
+  done: boolean;
+  done_at: string | null;
+  author_id: string | null;
+  created_at: string;
+};
