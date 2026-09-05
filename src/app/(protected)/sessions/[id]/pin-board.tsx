@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
-import type { CommentRow, CommentType, SessionWithImage } from "@/lib/types";
+import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
+import TagManagerModal from "./tag-manager-modal";
 
 type PendingPin = { x: number; y: number };
 
@@ -140,10 +141,11 @@ export default function PinBoard({
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
-  const [tagSuggestions, setTagSuggestions] = useState<Record<CommentType, string[]>>({
+  const [tags, setTags] = useState<Record<CommentType, TagRow[]>>({
     good: [],
     bad: [],
   });
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
 
   useEffect(() => {
     const el = imageRef.current;
@@ -163,32 +165,95 @@ export default function PinBoard({
   useEffect(() => {
     let cancelled = false;
     supabase
-      .from("comments")
-      .select("body, comment_type")
-      .order("created_at", { ascending: false })
-      .limit(500)
+      .from("tags")
+      .select("*")
+      .returns<TagRow[]>()
       .then(({ data }) => {
         if (cancelled || !data) return;
-        const counts: Record<CommentType, Map<string, number>> = {
-          good: new Map(),
-          bad: new Map(),
-        };
-        for (const row of data as { body: string; comment_type: CommentType }[]) {
-          const map = counts[row.comment_type];
-          map.set(row.body, (map.get(row.body) ?? 0) + 1);
-        }
-        const topOf = (map: Map<string, number>) =>
-          [...map.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 6)
-            .map(([text]) => text);
-        setTagSuggestions({ good: topOf(counts.good), bad: topOf(counts.bad) });
+        setTags({
+          good: data.filter((t) => t.comment_type === "good"),
+          bad: data.filter((t) => t.comment_type === "bad"),
+        });
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("tags-all")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tags" },
+        (payload) => {
+          const row = payload.new as TagRow;
+          setTags((prev) =>
+            prev[row.comment_type].some((t) => t.id === row.id)
+              ? prev
+              : { ...prev, [row.comment_type]: [...prev[row.comment_type], row] },
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tags" },
+        (payload) => {
+          const row = payload.new as TagRow;
+          setTags((prev) => ({
+            ...prev,
+            [row.comment_type]: prev[row.comment_type].map((t) =>
+              t.id === row.id ? row : t,
+            ),
+          }));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tags" },
+        (payload) => {
+          const oldRow = payload.old as { id: string };
+          setTags((prev) => ({
+            good: prev.good.filter((t) => t.id !== oldRow.id),
+            bad: prev.bad.filter((t) => t.id !== oldRow.id),
+          }));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const trackTagUsage = useCallback(
+    async (type: CommentType, text: string) => {
+      const { data: existing } = await supabase
+        .from("tags")
+        .select("id, use_count")
+        .eq("comment_type", type)
+        .eq("body", text)
+        .maybeSingle<{ id: string; use_count: number }>();
+
+      if (existing) {
+        await supabase
+          .from("tags")
+          .update({
+            use_count: existing.use_count + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("tags")
+          .insert({ comment_type: type, body: text, use_count: 1 });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const addCommentIfNew = useCallback((row: CommentRow) => {
     setComments((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, row]));
@@ -338,6 +403,7 @@ export default function PinBoard({
       setComments((prev) => prev.filter((c) => c.id !== newComment.id));
       alert(`投稿に失敗しました: ${error.message}`);
     } else {
+      trackTagUsage(newComment.comment_type, newComment.body).catch(() => {});
       fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -541,21 +607,28 @@ export default function PinBoard({
               ))}
             </div>
 
-            {tagSuggestions[commentType].length > 0 && (
-              <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
-                {tagSuggestions[commentType].map((tag) => (
+            <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+              {[...tags[commentType]]
+                .sort((a, b) => b.use_count - a.use_count)
+                .map((tag) => (
                   <button
-                    key={tag}
+                    key={tag.id}
                     type="button"
                     disabled={submitting}
-                    onClick={() => handleTagTap(tag)}
+                    onClick={() => handleTagTap(tag.body)}
                     className="shrink-0 whitespace-nowrap rounded-full border border-neutral-600 bg-neutral-800/90 px-3 py-1.5 text-xs text-gray-300 active:bg-neutral-700 disabled:opacity-50"
                   >
-                    {tag}
+                    {tag.body}
                   </button>
                 ))}
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setTagManagerOpen(true)}
+                className="shrink-0 whitespace-nowrap rounded-full border border-dashed border-neutral-600 px-3 py-1.5 text-xs text-gray-500"
+              >
+                ✎ タグを編集
+              </button>
+            </div>
 
             <textarea
               autoFocus
@@ -602,6 +675,17 @@ export default function PinBoard({
             </div>
           </form>
         </div>
+      )}
+
+      {tagManagerOpen && (
+        <TagManagerModal
+          commentType={commentType}
+          tags={tags[commentType]}
+          onClose={() => setTagManagerOpen(false)}
+          onChange={(next) =>
+            setTags((prev) => ({ ...prev, [commentType]: next }))
+          }
+        />
       )}
     </div>
   );

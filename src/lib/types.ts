@@ -61,6 +61,15 @@ export type ClapRow = {
   created_at: string;
 };
 
+export type TagRow = {
+  id: string;
+  comment_type: CommentType;
+  body: string;
+  use_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PushSubscriptionRow = {
   id: string;
   user_id: string;
