@@ -4,21 +4,25 @@ import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import { compressImage } from "@/lib/image";
+import { submitComment } from "@/lib/submit-comment";
 import type {
   CommentRow,
+  CommentType,
   ImageRow,
   ReactionType,
   SessionWithImage,
+  TagRow,
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
-import PinChip from "@/components/pin-chip";
 import { formatRelativeTime } from "@/lib/format-time";
+import CommentPinBoard from "./comment-pin-board";
+
+const DOUBLE_TAP_DELAY_MS = 300;
 
 export default function SessionCard({
   session,
   posterName,
   sessionComments,
-  cardSize,
   doneCount,
   needsWorkCount,
   myReaction,
@@ -26,9 +30,11 @@ export default function SessionCard({
   clapCount,
   isPopping,
   currentUserId,
+  tags,
+  onTagsChange,
+  onCommentAdded,
   onReact,
   onClap,
-  onPhotoTap,
   onShare,
   onOpenComments,
   onSessionUpdate,
@@ -36,7 +42,6 @@ export default function SessionCard({
   session: SessionWithImage;
   posterName: string | null;
   sessionComments: CommentRow[];
-  cardSize: number;
   doneCount: number;
   needsWorkCount: number;
   myReaction: ReactionType | undefined;
@@ -44,9 +49,11 @@ export default function SessionCard({
   clapCount: number;
   isPopping: boolean;
   currentUserId: string | null;
+  tags: Record<CommentType, TagRow[]>;
+  onTagsChange: (next: Record<CommentType, TagRow[]>) => void;
+  onCommentAdded: (row: CommentRow) => void;
   onReact: (sessionId: string, type: ReactionType) => void;
   onClap: (sessionId: string) => void;
-  onPhotoTap: (sessionId: string, e: React.MouseEvent) => void;
   onShare: (session: SessionWithImage) => void;
   onOpenComments: (sessionId: string) => void;
   onSessionUpdate: (session: SessionWithImage) => void;
@@ -135,6 +142,30 @@ export default function SessionCard({
     setResolving(false);
   }
 
+  async function handleSubmitComment({
+    type,
+    body,
+    pin,
+  }: {
+    type: CommentType;
+    body: string;
+    pin: { x: number; y: number; frameScale: number; rotationDeg: number };
+  }) {
+    if (!currentUserId) return { error: "ログインが必要です。" };
+    const { data, error } = await submitComment({
+      supabase,
+      sessionId: session.id,
+      imageId: session.image_id,
+      facilitatorId: session.facilitator_id,
+      currentUserId,
+      type,
+      body,
+      pin,
+    });
+    if (error) return { error };
+    if (data) onCommentAdded(data);
+  }
+
   return (
     <article className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
       {resolving && <LoadingOverlay label="対応済み写真を登録中..." />}
@@ -198,44 +229,37 @@ export default function SessionCard({
         </div>
       )}
 
-      <div
-        className="relative select-none"
-        onClick={(e) => onPhotoTap(session.id, e)}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={shelfImagePublicUrl(session.images.storage_path)}
-          alt=""
-          className="aspect-square w-full bg-neutral-800 object-cover"
-          draggable={false}
-        />
+      <CommentPinBoard
+        photoUrl={shelfImagePublicUrl(session.images.storage_path)}
+        pins={sessionComments}
+        currentUserId={currentUserId}
+        canComment={isOpen}
+        tags={tags}
+        onTagsChange={onTagsChange}
+        onSubmit={handleSubmitComment}
+        tapDelayMs={DOUBLE_TAP_DELAY_MS}
+        onDoubleTap={() => onClap(session.id)}
+        hint={
+          isOpen
+            ? "タップしてコメントを貼り付け(ダブルタップで🙏)"
+            : undefined
+        }
+        overlay={
+          <>
+            {myReaction && (
+              <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
+                {myReaction === "done" ? "✅" : "🔧"}
+              </div>
+            )}
 
-        {cardSize > 0 &&
-          sessionComments.map((c) => (
-            <PinChip
-              key={c.id}
-              x={c.position_x}
-              y={c.position_y}
-              widthPx={c.width_pct * cardSize}
-              heightPx={c.height_pct * cardSize}
-              rotationDeg={c.rotation_deg}
-              color={c.color}
-              text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
-            />
-          ))}
-
-        {myReaction && (
-          <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
-            {myReaction === "done" ? "✅" : "🔧"}
-          </div>
-        )}
-
-        {isPopping && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="heart-pop text-7xl">🙏</span>
-          </div>
-        )}
-      </div>
+            {isPopping && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="heart-pop text-7xl">🙏</span>
+              </div>
+            )}
+          </>
+        }
+      />
 
       <div className="px-3 py-3">
         <button

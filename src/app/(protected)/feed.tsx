@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type {
   ClapRow,
   CommentRow,
+  CommentType,
   ReactionRow,
   ReactionType,
   SessionWithImage,
+  TagRow,
 } from "@/lib/types";
 import SessionCard from "./session-card";
 import SessionCommentModal from "./session-comment-modal";
@@ -40,6 +42,10 @@ export default function Feed({
   const [clapCounts, setClapCounts] =
     useState<Record<string, number>>(initialClapCounts);
   const [comments, setComments] = useState<CommentRow[]>(initialComments);
+  const [tags, setTags] = useState<Record<CommentType, TagRow[]>>({
+    good: [],
+    bad: [],
+  });
   const [storeFilter, setStoreFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
@@ -47,9 +53,6 @@ export default function Feed({
   const [openSessionId, setOpenSessionId] = useState<string | null>(
     () => searchParams.get("session"),
   );
-  const lastTapRef = useRef<Record<string, number>>({});
-  const listRef = useRef<HTMLDivElement>(null);
-  const [cardSize, setCardSize] = useState(0);
 
   useEffect(() => {
     // ?session=<id> はモーダルを自動で開くためだけの一時的なパラメータ。
@@ -63,15 +66,74 @@ export default function Feed({
   }, []);
 
   useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setCardSize(entry.contentRect.width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
+    let cancelled = false;
+    supabase
+      .from("tags")
+      .select("*")
+      .returns<TagRow[]>()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setTags({
+          good: data.filter((t) => t.comment_type === "good"),
+          bad: data.filter((t) => t.comment_type === "bad"),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("tags-all")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tags" },
+        (payload) => {
+          const row = payload.new as TagRow;
+          setTags((prev) =>
+            prev[row.comment_type].some((t) => t.id === row.id)
+              ? prev
+              : { ...prev, [row.comment_type]: [...prev[row.comment_type], row] },
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tags" },
+        (payload) => {
+          const row = payload.new as TagRow;
+          setTags((prev) => ({
+            ...prev,
+            [row.comment_type]: prev[row.comment_type].map((t) =>
+              t.id === row.id ? row : t,
+            ),
+          }));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tags" },
+        (payload) => {
+          const oldRow = payload.old as { id: string };
+          setTags((prev) => ({
+            good: prev.good.filter((t) => t.id !== oldRow.id),
+            bad: prev.bad.filter((t) => t.id !== oldRow.id),
+          }));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addCommentIfNew(row: CommentRow) {
+    setComments((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, row]));
+  }
 
   useEffect(() => {
     const channel = supabase
@@ -188,17 +250,6 @@ export default function Feed({
     });
   }
 
-  function handlePhotoTap(sessionId: string, e: React.MouseEvent) {
-    const now = e.timeStamp;
-    const last = lastTapRef.current[sessionId] ?? 0;
-    if (now - last < 300) {
-      lastTapRef.current[sessionId] = 0;
-      handleClap(sessionId);
-    } else {
-      lastTapRef.current[sessionId] = now;
-    }
-  }
-
   function handleSessionUpdate(updated: SessionWithImage) {
     setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
@@ -304,7 +355,7 @@ export default function Feed({
         <p className="text-sm text-gray-500">条件に一致する投稿がありません。</p>
       )}
 
-      <div ref={listRef} className="mx-auto flex max-w-md flex-col gap-6">
+      <div className="mx-auto flex max-w-md flex-col gap-6">
         {visibleSessions.map((session) => {
           if (!session.images) return null;
           const sessionComments = comments.filter(
@@ -332,7 +383,6 @@ export default function Feed({
                 null
               }
               sessionComments={sessionComments}
-              cardSize={cardSize}
               doneCount={doneCount}
               needsWorkCount={needsWorkCount}
               myReaction={myReaction}
@@ -340,9 +390,11 @@ export default function Feed({
               clapCount={clapCounts[session.id] ?? 0}
               isPopping={poppingId === session.id}
               currentUserId={currentUserId}
+              tags={tags}
+              onTagsChange={setTags}
+              onCommentAdded={addCommentIfNew}
               onReact={handleReact}
               onClap={handleClap}
-              onPhotoTap={handlePhotoTap}
               onShare={handleShare}
               onOpenComments={setOpenSessionId}
               onSessionUpdate={handleSessionUpdate}

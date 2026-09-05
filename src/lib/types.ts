@@ -117,3 +117,18 @@ export type LayoutTaskRow = {
   author_id: string | null;
   created_at: string;
 };
+
+export type PinRow = {
+  id: string;
+  layout_reference_photo_id: string | null;
+  layout_current_photo_id: string | null;
+  position_x: number;
+  position_y: number;
+  width_pct: number;
+  height_pct: number;
+  rotation_deg: number;
+  color: string;
+  body: string;
+  author_id: string | null;
+  created_at: string;
+};

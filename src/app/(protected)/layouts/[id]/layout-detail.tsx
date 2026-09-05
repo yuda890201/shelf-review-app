@@ -10,9 +10,11 @@ import type {
   LayoutReferencePhotoRow,
   LayoutRow,
   LayoutTaskRow,
+  PinRow,
   Season,
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
+import PhotoAnnotator from "@/components/photo-annotator";
 
 const SEASON_LABEL: Record<Season, string> = {
   spring: "春",
@@ -48,6 +50,8 @@ export default function LayoutDetail({
   const [uploadingCurrent, setUploadingCurrent] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+  const [referencePins, setReferencePins] = useState<PinRow[]>([]);
+  const [currentPins, setCurrentPins] = useState<PinRow[]>([]);
 
   const referenceCameraRef = useRef<HTMLInputElement>(null);
   const referenceGalleryRef = useRef<HTMLInputElement>(null);
@@ -112,6 +116,78 @@ export default function LayoutDetail({
   const storeTasks = tasks.filter((t) => t.store_name === selectedStore);
   const openTasks = storeTasks.filter((t) => !t.done);
   const doneTasks = storeTasks.filter((t) => t.done);
+
+  useEffect(() => {
+    if (!latestReference) return;
+    let cancelled = false;
+    supabase
+      .from("pins")
+      .select("*")
+      .eq("layout_reference_photo_id", latestReference.id)
+      .returns<PinRow[]>()
+      .then(({ data }) => {
+        if (!cancelled) setReferencePins(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestReference?.id]);
+
+  useEffect(() => {
+    if (!latestCurrentForStore) return;
+    let cancelled = false;
+    supabase
+      .from("pins")
+      .select("*")
+      .eq("layout_current_photo_id", latestCurrentForStore.id)
+      .returns<PinRow[]>()
+      .then(({ data }) => {
+        if (!cancelled) setCurrentPins(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestCurrentForStore?.id]);
+
+  async function handleSubmitReferencePin(pin: {
+    position_x: number;
+    position_y: number;
+    width_pct: number;
+    height_pct: number;
+    rotation_deg: number;
+    color: string;
+    body: string;
+  }) {
+    if (!latestReference) return { error: "お手本写真がまだ登録されていません" };
+    const { data, error } = await supabase
+      .from("pins")
+      .insert({ layout_reference_photo_id: latestReference.id, ...pin })
+      .select()
+      .single<PinRow>();
+    if (error) return { error: error.message };
+    setReferencePins((prev) => [...prev, data]);
+  }
+
+  async function handleSubmitCurrentPin(pin: {
+    position_x: number;
+    position_y: number;
+    width_pct: number;
+    height_pct: number;
+    rotation_deg: number;
+    color: string;
+    body: string;
+  }) {
+    if (!latestCurrentForStore) return { error: "現在の売場写真がまだ登録されていません" };
+    const { data, error } = await supabase
+      .from("pins")
+      .insert({ layout_current_photo_id: latestCurrentForStore.id, ...pin })
+      .select()
+      .single<PinRow>();
+    if (error) return { error: error.message };
+    setCurrentPins((prev) => [...prev, data]);
+  }
 
   async function handleReferenceFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -293,12 +369,15 @@ export default function LayoutDetail({
         />
 
         {latestReference && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={shelfImagePublicUrl(latestReference.storage_path)}
-            alt="本部お手本写真"
-            className="mb-2 aspect-square w-full rounded-md border border-neutral-800 object-cover"
-          />
+          <div className="mb-2">
+            <PhotoAnnotator
+              photoUrl={shelfImagePublicUrl(latestReference.storage_path)}
+              pins={referencePins}
+              currentUserId={currentUserId}
+              onSubmit={handleSubmitReferencePin}
+              hint="画像をタップして、コメントを貼り付けてください。"
+            />
+          </div>
         )}
 
         <div className="flex gap-2">
@@ -365,11 +444,12 @@ export default function LayoutDetail({
               現在の売場
             </p>
             {latestCurrentForStore ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={shelfImagePublicUrl(latestCurrentForStore.storage_path)}
-                alt="現在の売場写真"
-                className="aspect-square w-full rounded-md border border-blue-800 object-cover"
+              <PhotoAnnotator
+                photoUrl={shelfImagePublicUrl(latestCurrentForStore.storage_path)}
+                pins={currentPins}
+                currentUserId={currentUserId}
+                onSubmit={handleSubmitCurrentPin}
+                hint="タップしてコメントを貼り付け"
               />
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-md border border-blue-900 bg-neutral-900 text-[11px] text-gray-600">
