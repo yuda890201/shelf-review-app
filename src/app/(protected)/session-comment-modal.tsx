@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import PinBoard from "./pin-board";
 
 export default function SessionCommentModal({
@@ -17,10 +18,13 @@ export default function SessionCommentModal({
 }) {
   const [comments, setComments] = useState<CommentRow[] | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     dialogRef.current?.showModal();
   }, []);
+
+  useBodyScrollLock(scrollRef, true);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +76,7 @@ export default function SessionCommentModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto p-3">
+        <div ref={scrollRef} className="overflow-y-auto p-3">
           {comments === null ? (
             <LoadingOverlay variant="inline" label="読み込み中..." />
           ) : (

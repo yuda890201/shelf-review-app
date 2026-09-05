@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
 import PinChip from "@/components/pin-chip";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import TagManagerModal from "./tag-manager-modal";
 
 type PendingPin = { x: number; y: number };
@@ -218,9 +219,11 @@ export default function PinBoard({
 
   const composerOpen = !!pendingPin;
   const composerDialogRef = useRef<HTMLDialogElement>(null);
+  const composerScrollRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (composerOpen) composerDialogRef.current?.showModal();
   }, [composerOpen]);
+  useBodyScrollLock(composerScrollRef, composerOpen);
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!isOpen) return;
@@ -528,6 +531,7 @@ export default function PinBoard({
         >
           <form
             id="pin-comment-form"
+            ref={composerScrollRef}
             onSubmit={handleSubmitComment}
             className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4"
           >

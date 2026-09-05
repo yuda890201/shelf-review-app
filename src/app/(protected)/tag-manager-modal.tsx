@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentType, TagRow } from "@/lib/types";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 const TYPE_LABEL: Record<CommentType, string> = {
   good: "良い点",
@@ -26,10 +27,13 @@ export default function TagManagerModal({
   const [editingBody, setEditingBody] = useState("");
   const [busy, setBusy] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const scrollRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     dialogRef.current?.showModal();
   }, []);
+
+  useBodyScrollLock(scrollRef, true);
 
   async function handleAdd() {
     const trimmed = newBody.trim();
@@ -126,7 +130,7 @@ export default function TagManagerModal({
           </button>
         </div>
 
-        <ul className="flex flex-col gap-2 overflow-y-auto">
+        <ul ref={scrollRef} className="flex flex-col gap-2 overflow-y-auto">
           {sorted.length === 0 && (
             <p className="text-xs text-gray-500">まだタグがありません。</p>
           )}
