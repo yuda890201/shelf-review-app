@@ -118,6 +118,8 @@ export type LayoutTaskRow = {
   created_at: string;
 };
 
+export type PinObjectKind = "move" | "widen" | "narrow";
+
 export type PinRow = {
   id: string;
   layout_reference_photo_id: string | null;
@@ -129,6 +131,7 @@ export type PinRow = {
   rotation_deg: number;
   color: string;
   body: string;
+  object_kind: PinObjectKind | null;
   author_id: string | null;
   created_at: string;
 };

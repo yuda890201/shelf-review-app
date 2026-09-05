@@ -46,6 +46,7 @@ npx supabase db push
 - `20250101000013_layouts.sql` — 本部レイアウト比較機能用の `layouts` / `layout_reference_photos` / `layout_current_photos` / `layout_tasks` テーブルを追加
 - `20250101000014_pins.sql` — 本部レイアウト比較の写真(お手本・現在の売場のどちらか一方)に流れるコメントピンを打てる `pins` テーブルを追加
 - `20250101000015_stores_and_trucks.sql` — それまでソースコードに直書きしていた店舗リスト・納品トラック(便)リストをテーブル化する `stores` / `delivery_trucks` を追加(既存の値を初期データとして投入済み)
+- `20250101000016_pin_object_kind.sql` — `pins` にテキストなしのアイコンオブジェクト(移動/フェイス拡げる/フェイス縮める)を表せる `object_kind` カラムを追加
 
 ### 3. 認証方式の確認
 
@@ -111,6 +112,10 @@ npm run dev
 `images.embedding` はフェーズ2以降の類似画像検索用に予約したカラムで、MVPでは未使用です。`push_subscriptions` はWeb Push通知の購読情報(ブラウザから発行されるendpoint/鍵)を保持し、通知送信時にservice roleキーで参照します。`tags` はコメント種別(good/bad)ごとの「よく使う文言」で、投稿されるたびに自動で蓄積(既存タグは`use_count`を加算、未登録の文言は新規追加)されるほか、コメント入力画面から手動で追加・編集・削除もできます。
 
 本部レイアウト比較機能(`/layouts`)は上記の意見出しモードとは独立したデータモデルです。`layouts`(売場の名前、約50件)→ `layout_reference_photos`(本部お手本写真。季節・年ごとに追加され、最新のものが現行レイアウトとして扱われる)、`layouts` → `layout_current_photos`(店舗ごとの現在の売場写真)、`layouts` → `layout_tasks`(店舗ごとの対応タスク。`done`/`done_at`でチェックリストとして管理)という構造です。写真は既存の`shelf-images`ストレージバケットを再利用しています。`pins`は`layout_reference_photo_id`/`layout_current_photo_id`のどちらか一方(CHECK制約で排他)に紐づく汎用コメントピンで、`src/components/photo-annotator.tsx`が描画とタップ配置を担当します。
+
+### 移動・フェイス拡げる・フェイス縮めるのアイコンピン
+
+「このフェイスを拡げる」のような当たり前の指示まで毎回文章で打つのは手間なので、`pins.object_kind`(`move` / `widen` / `narrow`)を設定すると、流れるコメントの代わりに矢印アイコン(`src/components/pin-object-icon.tsx`)だけを貼り付けられます。ピン配置後に表示される3つのアイコンボタンをタップすると、その場でテキストなしのオブジェクトとして即投稿されます(文章を入力してから「投稿」を押す従来のフローとは別の、もう一つの投稿手段)。「移動」アイコンは既存の角度スライダー(-180°〜180°に拡張)でどの向きにも回転でき、指示したい移動方向をそのまま示せます。`object_kind`が`null`の場合は従来どおりの文章ピンとして扱われ、`PinChip`が自動で描き分けます。
 
 ### 店舗・納品トラックのマスタ管理
 

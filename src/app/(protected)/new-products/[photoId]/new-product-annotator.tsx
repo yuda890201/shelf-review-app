@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import PhotoAnnotator from "@/components/photo-annotator";
-import type { LayoutCurrentPhotoRow, PinRow } from "@/lib/types";
+import type { LayoutCurrentPhotoRow, PinObjectKind, PinRow } from "@/lib/types";
 
 export default function NewProductAnnotator({
   photo,
@@ -29,6 +29,7 @@ export default function NewProductAnnotator({
     rotation_deg: number;
     color: string;
     body: string;
+    object_kind: PinObjectKind | null;
   }) {
     if (!currentUserId) return { error: "ログインが必要です。" };
     const { data, error } = await supabase

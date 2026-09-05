@@ -9,6 +9,7 @@ import type {
   LayoutReferencePhotoRow,
   LayoutRow,
   LayoutTaskRow,
+  PinObjectKind,
   PinRow,
   Season,
   StoreRow,
@@ -177,6 +178,7 @@ export default function LayoutDetail({
     rotation_deg: number;
     color: string;
     body: string;
+    object_kind: PinObjectKind | null;
   }) {
     if (!latestReference) return { error: "お手本写真がまだ登録されていません" };
     const { data, error } = await supabase
@@ -199,6 +201,7 @@ export default function LayoutDetail({
     rotation_deg: number;
     color: string;
     body: string;
+    object_kind: PinObjectKind | null;
   }) {
     if (!latestCurrentForStore) return { error: "現在の売場写真がまだ登録されていません" };
     const { data, error } = await supabase

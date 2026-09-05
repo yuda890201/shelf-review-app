@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import PinChip from "@/components/pin-chip";
+import PinObjectIcon, { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import type { PinObjectKind } from "@/lib/types";
 
 type PendingPin = { x: number; y: number };
 
@@ -41,7 +43,10 @@ export type AnnotatorPin = {
   rotation_deg: number;
   color: string;
   body: string;
+  object_kind?: PinObjectKind | null;
 };
+
+const OBJECT_KINDS: PinObjectKind[] = ["move", "widen", "narrow"];
 
 export default function PhotoAnnotator({
   photoUrl,
@@ -62,6 +67,7 @@ export default function PhotoAnnotator({
     rotation_deg: number;
     color: string;
     body: string;
+    object_kind: PinObjectKind | null;
   }) => Promise<{ error?: string } | void>;
   readOnly?: boolean;
   hint?: string;
@@ -181,6 +187,30 @@ export default function PhotoAnnotator({
       rotation_deg: rotation,
       color: colorForId(id),
       body: body.trim(),
+      object_kind: null,
+    });
+    if (result && "error" in result && result.error) {
+      alert(`投稿に失敗しました: ${result.error}`);
+    } else {
+      setPendingPin(null);
+      setBody("");
+    }
+    setSubmitting(false);
+  }
+
+  async function submitObject(kind: PinObjectKind) {
+    if (!pendingPin) return;
+    setSubmitting(true);
+    const id = crypto.randomUUID();
+    const result = await onSubmit({
+      position_x: pendingPin.x,
+      position_y: pendingPin.y,
+      width_pct: BASE_WIDTH_PCT * frameScale,
+      height_pct: BASE_HEIGHT_PCT * frameScale,
+      rotation_deg: rotation,
+      color: colorForId(id),
+      body: "",
+      object_kind: kind,
     });
     if (result && "error" in result && result.error) {
       alert(`投稿に失敗しました: ${result.error}`);
@@ -219,6 +249,7 @@ export default function PhotoAnnotator({
               rotationDeg={p.rotation_deg}
               color={p.color}
               text={p.body}
+              objectKind={p.object_kind}
               isActive={activeId === p.id}
               onClick={
                 readOnly
@@ -288,6 +319,28 @@ export default function PhotoAnnotator({
           ref={composerRef}
           className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
         >
+          <p className="text-xs text-gray-400">
+            よくある指示はアイコンで素早く:
+          </p>
+          <div className="flex gap-2">
+            {OBJECT_KINDS.map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => submitObject(kind)}
+                disabled={submitting}
+                className="flex flex-1 flex-col items-center gap-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-gray-200 disabled:opacity-50"
+              >
+                <PinObjectIcon kind={kind} className="h-6 w-6" />
+                <span className="text-[10px] leading-tight">
+                  {OBJECT_KIND_LABEL[kind]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <p className="text-center text-[11px] text-gray-500">または文章で入力:</p>
+
           <form
             id={formId}
             onSubmit={handleSubmit}
@@ -305,8 +358,8 @@ export default function PhotoAnnotator({
               <span className="w-10 shrink-0">角度</span>
               <input
                 type="range"
-                min={-45}
-                max={45}
+                min={-180}
+                max={180}
                 step={1}
                 value={rotation}
                 onChange={(e) => setRotation(Number(e.target.value))}
