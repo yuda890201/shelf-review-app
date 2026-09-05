@@ -11,6 +11,10 @@ import TagManagerModal from "./tag-manager-modal";
 const OBJECT_KINDS: PinObjectKind[] = ["move", "widen", "narrow"];
 const DRAG_THRESHOLD_PX = 10;
 const PENDING_COLOR = "#3b82f6";
+const MIN_WIDTH_PCT = 0.05;
+const MAX_WIDTH_PCT = 0.9;
+const MIN_HEIGHT_PCT = 0.02;
+const MAX_HEIGHT_PCT = 0.4;
 
 type PendingPin = { x: number; y: number };
 type PendingLine = { x1: number; y1: number; x2: number; y2: number };
@@ -50,7 +54,8 @@ export default function CommentPinBoard({
     pin: {
       x: number;
       y: number;
-      frameScale: number;
+      widthPct: number;
+      heightPct: number;
       rotationDeg: number;
       endX: number | null;
       endY: number | null;
@@ -71,7 +76,8 @@ export default function CommentPinBoard({
   const [pendingLine, setPendingLine] = useState<PendingLine | null>(null);
   const [commentType, setCommentType] = useState<CommentType>("bad");
   const [body, setBody] = useState("");
-  const [frameScale, setFrameScale] = useState(1);
+  const [frameWidthPct, setFrameWidthPct] = useState(BASE_WIDTH_PCT);
+  const [frameHeightPct, setFrameHeightPct] = useState(BASE_HEIGHT_PCT);
   const [rotation, setRotation] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
@@ -107,7 +113,8 @@ export default function CommentPinBoard({
     setPendingPin({ x, y });
     setBody("");
     setCommentType("bad");
-    setFrameScale(1);
+    setFrameWidthPct(BASE_WIDTH_PCT);
+    setFrameHeightPct(BASE_HEIGHT_PCT);
     setRotation(0);
   }
 
@@ -193,14 +200,6 @@ export default function CommentPinBoard({
     };
   }, []);
 
-  function distanceFromPinCenter(pin: PendingPin, clientX: number, clientY: number) {
-    const rect = imageRef.current?.getBoundingClientRect();
-    if (!rect) return 0;
-    const centerX = rect.left + pin.x * rect.width;
-    const centerY = rect.top + pin.y * rect.height;
-    return Math.hypot(clientX - centerX, clientY - centerY);
-  }
-
   function startDrag(onMove: (e: PointerEvent) => void) {
     const handleUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -217,12 +216,30 @@ export default function CommentPinBoard({
     e.preventDefault();
     if (!pendingPin) return;
     const pin = pendingPin;
-    const startDistance = Math.max(1, distanceFromPinCenter(pin, e.clientX, e.clientY));
-    const startScale = frameScale;
+    const rect = imageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + pin.x * rect.width;
+    const centerY = rect.top + pin.y * rect.height;
+    // 枠が回転している場合、ドラッグの生座標を枠のローカル座標系(幅方向/高さ方向)へ
+    // 逆回転して変換することで、縦横を独立して自由にリサイズできるようにする。
+    const rad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
 
     startDrag((ev) => {
-      const distance = distanceFromPinCenter(pin, ev.clientX, ev.clientY);
-      setFrameScale(Math.min(3, Math.max(0.5, startScale * (distance / startDistance))));
+      const dxRaw = ev.clientX - centerX;
+      const dyRaw = ev.clientY - centerY;
+      const localDx = dxRaw * cos - dyRaw * sin;
+      const localDy = dxRaw * sin + dyRaw * cos;
+      setFrameWidthPct(
+        Math.min(MAX_WIDTH_PCT, Math.max(MIN_WIDTH_PCT, (Math.abs(localDx) * 2) / rect.width)),
+      );
+      setFrameHeightPct(
+        Math.min(
+          MAX_HEIGHT_PCT,
+          Math.max(MIN_HEIGHT_PCT, (Math.abs(localDy) * 2) / rect.height),
+        ),
+      );
     });
   }
 
@@ -264,7 +281,8 @@ export default function CommentPinBoard({
       pin: {
         x: pendingPin.x,
         y: pendingPin.y,
-        frameScale,
+        widthPct: frameWidthPct,
+        heightPct: frameHeightPct,
         rotationDeg: rotation,
         endX: null,
         endY: null,
@@ -289,7 +307,8 @@ export default function CommentPinBoard({
       pin: {
         x: pendingLine.x1,
         y: pendingLine.y1,
-        frameScale: 1,
+        widthPct: 0,
+        heightPct: 0,
         rotationDeg: 0,
         endX: pendingLine.x2,
         endY: pendingLine.y2,
@@ -422,8 +441,8 @@ export default function CommentPinBoard({
               style={{
                 left: `${pendingPin.x * 100}%`,
                 top: `${pendingPin.y * 100}%`,
-                width: `${BASE_WIDTH_PCT * frameScale * imgSize.width}px`,
-                height: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
+                width: `${frameWidthPct * imgSize.width}px`,
+                height: `${frameHeightPct * imgSize.height}px`,
                 transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                 borderColor: commentType === "good" ? "#22c55e" : "#ef4444",
                 touchAction: "none",
@@ -445,8 +464,8 @@ export default function CommentPinBoard({
                       aria-hidden={copy === 1}
                       className="whitespace-nowrap px-2 font-black tracking-wide"
                       style={{
-                        fontSize: `${Math.max(9, BASE_HEIGHT_PCT * frameScale * imgSize.height * 0.65)}px`,
-                        lineHeight: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
+                        fontSize: `${Math.max(9, frameHeightPct * imgSize.height * 0.65)}px`,
+                        lineHeight: `${frameHeightPct * imgSize.height}px`,
                         color: commentType === "good" ? "#22c55e" : "#ef4444",
                         textShadow: TEXT_OUTLINE,
                       }}
@@ -577,7 +596,7 @@ export default function CommentPinBoard({
               <span className="text-right text-[11px] leading-tight text-gray-500">
                 枠をドラッグで移動
                 <br />
-                右下の◯でサイズ変更
+                右下の◯で縦横自由にサイズ変更
               </span>
             </div>
           </form>

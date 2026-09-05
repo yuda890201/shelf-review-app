@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommentRow, CommentType, PinObjectKind } from "@/lib/types";
-import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT, colorForId } from "@/lib/comment-pin";
+import { colorForId } from "@/lib/comment-pin";
 
 export async function submitComment({
   supabase,
@@ -24,7 +24,8 @@ export async function submitComment({
   pin: {
     x: number;
     y: number;
-    frameScale: number;
+    widthPct: number;
+    heightPct: number;
     rotationDeg: number;
     endX?: number | null;
     endY?: number | null;
@@ -44,8 +45,8 @@ export async function submitComment({
     object_kind: objectKind,
     author_id: currentUserId,
     created_at: new Date().toISOString(),
-    width_pct: BASE_WIDTH_PCT * pin.frameScale,
-    height_pct: BASE_HEIGHT_PCT * pin.frameScale,
+    width_pct: pin.widthPct,
+    height_pct: pin.heightPct,
     rotation_deg: pin.rotationDeg,
     color: colorForId(id),
   };

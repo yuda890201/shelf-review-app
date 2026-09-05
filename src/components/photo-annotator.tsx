@@ -11,6 +11,10 @@ type PendingLine = { x1: number; y1: number; x2: number; y2: number };
 
 const BASE_WIDTH_PCT = 0.16;
 const BASE_HEIGHT_PCT = 0.045;
+const MIN_WIDTH_PCT = 0.05;
+const MAX_WIDTH_PCT = 0.9;
+const MIN_HEIGHT_PCT = 0.02;
+const MAX_HEIGHT_PCT = 0.4;
 const PENDING_COLOR = "#3b82f6";
 const DRAG_THRESHOLD_PX = 10;
 const FRAME_COLORS = [
@@ -87,7 +91,8 @@ export default function PhotoAnnotator({
   const [draftLine, setDraftLine] = useState<PendingLine | null>(null);
   const [pendingLine, setPendingLine] = useState<PendingLine | null>(null);
   const [body, setBody] = useState("");
-  const [frameScale, setFrameScale] = useState(1);
+  const [frameWidthPct, setFrameWidthPct] = useState(BASE_WIDTH_PCT);
+  const [frameHeightPct, setFrameHeightPct] = useState(BASE_HEIGHT_PCT);
   const [rotation, setRotation] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -153,7 +158,8 @@ export default function PhotoAnnotator({
       } else {
         setPendingPin({ x: startX, y: startY });
         setBody("");
-        setFrameScale(1);
+        setFrameWidthPct(BASE_WIDTH_PCT);
+        setFrameHeightPct(BASE_HEIGHT_PCT);
         setRotation(0);
       }
     }
@@ -169,14 +175,6 @@ export default function PhotoAnnotator({
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
-  }
-
-  function distanceFromPinCenter(pin: PendingPin, clientX: number, clientY: number) {
-    const rect = imageRef.current?.getBoundingClientRect();
-    if (!rect) return 0;
-    const centerX = rect.left + pin.x * rect.width;
-    const centerY = rect.top + pin.y * rect.height;
-    return Math.hypot(clientX - centerX, clientY - centerY);
   }
 
   function startDrag(onMove: (e: PointerEvent) => void) {
@@ -195,12 +193,30 @@ export default function PhotoAnnotator({
     e.preventDefault();
     if (!pendingPin) return;
     const pin = pendingPin;
-    const startDistance = Math.max(1, distanceFromPinCenter(pin, e.clientX, e.clientY));
-    const startScale = frameScale;
+    const rect = imageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + pin.x * rect.width;
+    const centerY = rect.top + pin.y * rect.height;
+    // 枠が回転している場合、ドラッグの生座標を枠のローカル座標系(幅方向/高さ方向)へ
+    // 逆回転して変換することで、縦横を独立して自由にリサイズできるようにする。
+    const rad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
 
     startDrag((ev) => {
-      const distance = distanceFromPinCenter(pin, ev.clientX, ev.clientY);
-      setFrameScale(Math.min(3, Math.max(0.5, startScale * (distance / startDistance))));
+      const dxRaw = ev.clientX - centerX;
+      const dyRaw = ev.clientY - centerY;
+      const localDx = dxRaw * cos - dyRaw * sin;
+      const localDy = dxRaw * sin + dyRaw * cos;
+      setFrameWidthPct(
+        Math.min(MAX_WIDTH_PCT, Math.max(MIN_WIDTH_PCT, (Math.abs(localDx) * 2) / rect.width)),
+      );
+      setFrameHeightPct(
+        Math.min(
+          MAX_HEIGHT_PCT,
+          Math.max(MIN_HEIGHT_PCT, (Math.abs(localDy) * 2) / rect.height),
+        ),
+      );
     });
   }
 
@@ -241,8 +257,8 @@ export default function PhotoAnnotator({
       position_y: pendingPin.y,
       end_position_x: null,
       end_position_y: null,
-      width_pct: BASE_WIDTH_PCT * frameScale,
-      height_pct: BASE_HEIGHT_PCT * frameScale,
+      width_pct: frameWidthPct,
+      height_pct: frameHeightPct,
       rotation_deg: rotation,
       color: colorForId(id),
       body: body.trim(),
@@ -380,8 +396,8 @@ export default function PhotoAnnotator({
             style={{
               left: `${pendingPin.x * 100}%`,
               top: `${pendingPin.y * 100}%`,
-              width: `${BASE_WIDTH_PCT * frameScale * imgSize.width}px`,
-              height: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
+              width: `${frameWidthPct * imgSize.width}px`,
+              height: `${frameHeightPct * imgSize.height}px`,
               transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
               borderColor: PENDING_COLOR,
               touchAction: "none",
@@ -403,8 +419,8 @@ export default function PhotoAnnotator({
                     aria-hidden={copy === 1}
                     className="whitespace-nowrap px-2 font-black tracking-wide"
                     style={{
-                      fontSize: `${Math.max(9, BASE_HEIGHT_PCT * frameScale * imgSize.height * 0.65)}px`,
-                      lineHeight: `${BASE_HEIGHT_PCT * frameScale * imgSize.height}px`,
+                      fontSize: `${Math.max(9, frameHeightPct * imgSize.height * 0.65)}px`,
+                      lineHeight: `${frameHeightPct * imgSize.height}px`,
                       color: PENDING_COLOR,
                       textShadow: TEXT_OUTLINE,
                     }}
@@ -496,7 +512,7 @@ export default function PhotoAnnotator({
               <span className="text-right text-[11px] leading-tight text-gray-500">
                 枠をドラッグで移動
                 <br />
-                右下の◯でサイズ変更
+                右下の◯で縦横自由にサイズ変更
               </span>
             </div>
           </form>

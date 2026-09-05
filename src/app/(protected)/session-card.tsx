@@ -155,7 +155,8 @@ export default function SessionCard({
     pin: {
       x: number;
       y: number;
-      frameScale: number;
+      widthPct: number;
+      heightPct: number;
       rotationDeg: number;
       endX: number | null;
       endY: number | null;
