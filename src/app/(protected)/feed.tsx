@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type {
   ClapRow,
@@ -31,6 +31,7 @@ export default function Feed({
   currentUserId: string | null;
 }) {
   const supabase = createClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [sessions, setSessions] = useState<SessionWithImage[]>(initialSessions);
   const [reactions, setReactions] = useState<ReactionRow[]>(initialReactions);
@@ -47,6 +48,17 @@ export default function Feed({
   const lastTapRef = useRef<Record<string, number>>({});
   const listRef = useRef<HTMLDivElement>(null);
   const [cardSize, setCardSize] = useState(0);
+
+  useEffect(() => {
+    // ?session=<id> はモーダルを自動で開くためだけの一時的なパラメータ。
+    // URLに残したままだとリロードや再訪問のたびに開き直してしまう
+    // (背景スクロールがロックされたまま戻れなくなる不具合の原因になる)ので、
+    // 読み取ったら一度きりで消す。
+    if (searchParams.get("session")) {
+      router.replace("/", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = listRef.current;
@@ -333,7 +345,7 @@ export default function Feed({
         })}
       </div>
 
-      {openSession && (
+      {openSession?.images && (
         <SessionCommentModal
           session={openSession}
           currentUserId={currentUserId}
