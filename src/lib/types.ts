@@ -37,6 +37,7 @@ export type CommentRow = {
   height_pct: number;
   rotation_deg: number;
   color: string;
+  object_kind: PinObjectKind | null;
 };
 
 export type SessionWithImage = SessionRow & {

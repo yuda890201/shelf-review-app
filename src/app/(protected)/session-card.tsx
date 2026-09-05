@@ -9,6 +9,7 @@ import type {
   CommentRow,
   CommentType,
   ImageRow,
+  PinObjectKind,
   ReactionType,
   SessionWithImage,
   TagRow,
@@ -145,10 +146,12 @@ export default function SessionCard({
   async function handleSubmitComment({
     type,
     body,
+    objectKind,
     pin,
   }: {
     type: CommentType;
     body: string;
+    objectKind: PinObjectKind | null;
     pin: { x: number; y: number; frameScale: number; rotationDeg: number };
   }) {
     if (!currentUserId) return { error: "ログインが必要です。" };
@@ -160,6 +163,7 @@ export default function SessionCard({
       currentUserId,
       type,
       body,
+      objectKind,
       pin,
     });
     if (error) return { error };

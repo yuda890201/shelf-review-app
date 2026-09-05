@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CommentRow, CommentType } from "@/lib/types";
+import type { CommentRow, CommentType, PinObjectKind } from "@/lib/types";
 import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT, colorForId } from "@/lib/comment-pin";
 
 export async function submitComment({
@@ -10,6 +10,7 @@ export async function submitComment({
   currentUserId,
   type,
   body,
+  objectKind = null,
   pin,
 }: {
   supabase: SupabaseClient;
@@ -19,6 +20,7 @@ export async function submitComment({
   currentUserId: string;
   type: CommentType;
   body: string;
+  objectKind?: PinObjectKind | null;
   pin: { x: number; y: number; frameScale: number; rotationDeg: number };
 }): Promise<{ data?: CommentRow; error?: string }> {
   const id = crypto.randomUUID();
@@ -30,6 +32,7 @@ export async function submitComment({
     position_y: pin.y,
     comment_type: type,
     body: body.trim(),
+    object_kind: objectKind,
     author_id: currentUserId,
     created_at: new Date().toISOString(),
     width_pct: BASE_WIDTH_PCT * pin.frameScale,
@@ -46,6 +49,7 @@ export async function submitComment({
     position_y: newComment.position_y,
     comment_type: newComment.comment_type,
     body: newComment.body,
+    object_kind: newComment.object_kind,
     author_id: newComment.author_id,
     width_pct: newComment.width_pct,
     height_pct: newComment.height_pct,
@@ -55,7 +59,9 @@ export async function submitComment({
 
   if (error) return { error: error.message };
 
-  trackTagUsage(supabase, type, newComment.body).catch(() => {});
+  if (!objectKind) {
+    trackTagUsage(supabase, type, newComment.body).catch(() => {});
+  }
   fetch("/api/notify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

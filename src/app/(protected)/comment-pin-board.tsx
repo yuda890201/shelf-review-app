@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import PinChip from "@/components/pin-chip";
+import PinObjectIcon, { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
 import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT } from "@/lib/comment-pin";
-import type { CommentRow, CommentType, TagRow } from "@/lib/types";
+import type { CommentRow, CommentType, PinObjectKind, TagRow } from "@/lib/types";
 import TagManagerModal from "./tag-manager-modal";
+
+const OBJECT_KINDS: PinObjectKind[] = ["move", "widen", "narrow"];
 
 type PendingPin = { x: number; y: number };
 
@@ -39,6 +42,7 @@ export default function CommentPinBoard({
   onSubmit: (args: {
     type: CommentType;
     body: string;
+    objectKind: PinObjectKind | null;
     pin: { x: number; y: number; frameScale: number; rotationDeg: number };
   }) => Promise<{ error?: string } | void>;
   stickyHeader?: boolean;
@@ -180,12 +184,18 @@ export default function CommentPinBoard({
     };
   }, []);
 
-  async function submit(text: string, type: CommentType) {
-    if (!pendingPin || !currentUserId || !text.trim()) return;
+  async function submit(
+    text: string,
+    type: CommentType,
+    objectKind: PinObjectKind | null = null,
+  ) {
+    if (!pendingPin || !currentUserId) return;
+    if (!objectKind && !text.trim()) return;
     setSubmitting(true);
     const result = await onSubmit({
       type,
       body: text,
+      objectKind,
       pin: { x: pendingPin.x, y: pendingPin.y, frameScale, rotationDeg: rotation },
     });
     if (result && "error" in result && result.error) {
@@ -204,6 +214,10 @@ export default function CommentPinBoard({
 
   async function handleTagTap(text: string) {
     await submit(text, commentType);
+  }
+
+  async function handleSubmitObject(kind: PinObjectKind) {
+    await submit("", commentType, kind);
   }
 
   return (
@@ -245,6 +259,7 @@ export default function CommentPinBoard({
                 rotationDeg={c.rotation_deg}
                 color={c.color}
                 text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
+                objectKind={c.object_kind}
                 isActive={activeCommentId === c.id}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -307,7 +322,7 @@ export default function CommentPinBoard({
       {pendingPin && (
         <div
           ref={composerRef}
-          className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
+          className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-300 bg-neutral-100 p-3"
         >
           <form
             id="pin-comment-form"
@@ -323,15 +338,35 @@ export default function CommentPinBoard({
                   className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold ${
                     commentType === t
                       ? t === "good"
-                        ? "border-green-500 bg-green-950/60 text-green-300"
-                        : "border-red-500 bg-red-950/60 text-red-300"
-                      : "border-neutral-600 text-gray-400"
+                        ? "border-green-500 bg-green-50 text-green-700"
+                        : "border-red-500 bg-red-50 text-red-700"
+                      : "border-neutral-300 text-gray-500"
                   }`}
                 >
                   {TYPE_LABEL[t]}
                 </button>
               ))}
             </div>
+
+            <p className="text-xs text-gray-500">よくある指示はアイコンで素早く:</p>
+            <div className="flex gap-2">
+              {OBJECT_KINDS.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => handleSubmitObject(kind)}
+                  disabled={submitting}
+                  className="flex flex-1 flex-col items-center gap-1 rounded-md border border-neutral-300 bg-white px-2 py-2 text-gray-700 disabled:opacity-50"
+                >
+                  <PinObjectIcon kind={kind} className="h-6 w-6" />
+                  <span className="text-[10px] leading-tight">
+                    {OBJECT_KIND_LABEL[kind]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <p className="text-center text-[11px] text-gray-500">または文章で入力:</p>
 
             <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
               {[...tags[commentType]]
@@ -342,7 +377,7 @@ export default function CommentPinBoard({
                     type="button"
                     disabled={submitting}
                     onClick={() => handleTagTap(tag.body)}
-                    className="shrink-0 whitespace-nowrap rounded-full border border-neutral-600 bg-neutral-800/90 px-3 py-1.5 text-xs text-gray-300 active:bg-neutral-700 disabled:opacity-50"
+                    className="shrink-0 whitespace-nowrap rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs text-gray-700 active:bg-neutral-100 disabled:opacity-50"
                   >
                     {tag.body}
                   </button>
@@ -350,7 +385,7 @@ export default function CommentPinBoard({
               <button
                 type="button"
                 onClick={() => setTagManagerOpen(true)}
-                className="shrink-0 whitespace-nowrap rounded-full border border-dashed border-neutral-600 px-3 py-1.5 text-xs text-gray-500"
+                className="shrink-0 whitespace-nowrap rounded-full border border-dashed border-neutral-400 px-3 py-1.5 text-xs text-gray-500"
               >
                 ✎ タグを編集
               </button>
@@ -361,15 +396,15 @@ export default function CommentPinBoard({
               onChange={(e) => setBody(e.target.value)}
               placeholder="気づいた点を入力..."
               rows={2}
-              className="w-full rounded-md border border-neutral-600 bg-neutral-800/70 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400"
             />
 
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="w-10 shrink-0">角度</span>
               <input
                 type="range"
-                min={-45}
-                max={45}
+                min={-180}
+                max={180}
                 step={1}
                 value={rotation}
                 onChange={(e) => setRotation(Number(e.target.value))}
@@ -383,11 +418,11 @@ export default function CommentPinBoard({
             </div>
           </form>
 
-          <div className="flex gap-2 border-t border-neutral-700 pt-2">
+          <div className="flex gap-2 border-t border-neutral-300 pt-2">
             <button
               type="button"
               onClick={() => setPendingPin(null)}
-              className="flex-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200"
+              className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-gray-700"
             >
               キャンセル
             </button>

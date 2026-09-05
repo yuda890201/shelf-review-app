@@ -4,7 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import { submitComment } from "@/lib/submit-comment";
-import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
+import type {
+  CommentRow,
+  CommentType,
+  PinObjectKind,
+  SessionWithImage,
+  TagRow,
+} from "@/lib/types";
 import CommentPinBoard from "./comment-pin-board";
 
 export default function PinBoard({
@@ -122,10 +128,12 @@ export default function PinBoard({
   async function handleSubmit({
     type,
     body,
+    objectKind,
     pin,
   }: {
     type: CommentType;
     body: string;
+    objectKind: PinObjectKind | null;
     pin: { x: number; y: number; frameScale: number; rotationDeg: number };
   }) {
     if (!currentUserId) return { error: "ログインが必要です。" };
@@ -137,6 +145,7 @@ export default function PinBoard({
       currentUserId,
       type,
       body,
+      objectKind,
       pin,
     });
     if (error) return { error };
