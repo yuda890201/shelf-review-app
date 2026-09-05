@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
+import LoadingOverlay from "@/components/loading-overlay";
 import type { LayoutCurrentPhotoRow, LayoutRow, StoreRow } from "@/lib/types";
 
 export default function NewProductPicker({
@@ -22,11 +23,18 @@ export default function NewProductPicker({
   const [selectedStore, setSelectedStore] = useState<string>(
     stores[0]?.name ?? "",
   );
-  const [photos, setPhotos] = useState<LayoutCurrentPhotoRow[]>([]);
+  const [photosByKey, setPhotosByKey] = useState<
+    Record<string, LayoutCurrentPhotoRow[]>
+  >({});
+
+  const requestKey = `${selectedLayoutId}:${selectedStore}`;
+  const photos = photosByKey[requestKey] ?? [];
+  const loadingPhotos = !!selectedLayoutId && !(requestKey in photosByKey);
 
   useEffect(() => {
     if (!selectedLayoutId) return;
     let cancelled = false;
+    const key = `${selectedLayoutId}:${selectedStore}`;
     supabase
       .from("layout_current_photos")
       .select("*")
@@ -35,7 +43,9 @@ export default function NewProductPicker({
       .order("created_at", { ascending: false })
       .returns<LayoutCurrentPhotoRow[]>()
       .then(({ data }) => {
-        if (!cancelled) setPhotos(data ?? []);
+        if (!cancelled) {
+          setPhotosByKey((prev) => ({ ...prev, [key]: data ?? [] }));
+        }
       });
     return () => {
       cancelled = true;
@@ -85,13 +95,15 @@ export default function NewProductPicker({
       <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-3">
         <h2 className="mb-2 text-sm font-bold text-gray-300">売場写真を選択</h2>
 
-        {photos.length === 0 && (
+        {loadingPhotos && <LoadingOverlay variant="inline" label="読み込み中..." />}
+
+        {!loadingPhotos && photos.length === 0 && (
           <p className="text-xs text-gray-500">
             この売場・店舗の現在の売場写真がまだありません。先に「本部レイアウト比較」からアップロードしてください。
           </p>
         )}
 
-        {latest && (
+        {!loadingPhotos && latest && (
           <div className="mb-3">
             <p className="mb-1 text-xs font-medium text-blue-400">現在の売場</p>
             <button
@@ -109,7 +121,7 @@ export default function NewProductPicker({
           </div>
         )}
 
-        {archived.length > 0 && (
+        {!loadingPhotos && archived.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-medium text-gray-500">
               過去のアーカイブ

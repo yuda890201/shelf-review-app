@@ -17,8 +17,8 @@ import LoadingOverlay from "@/components/loading-overlay";
 import PhotoAnnotator from "@/components/photo-annotator";
 
 const SEASON_LABEL: Record<Season, string> = {
-  spring: "春",
-  autumn: "秋",
+  spring: "春夏",
+  autumn: "秋冬",
 };
 
 function guessCurrentSeason(): Season {
@@ -47,13 +47,12 @@ export default function LayoutDetail({
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedStore, setSelectedStore] = useState(stores[0]?.name ?? "");
   const [season, setSeason] = useState<Season>(guessCurrentSeason());
-  const [year, setYear] = useState(new Date().getFullYear());
   const [uploadingReference, setUploadingReference] = useState(false);
   const [uploadingCurrent, setUploadingCurrent] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
-  const [referencePins, setReferencePins] = useState<PinRow[]>([]);
-  const [currentPins, setCurrentPins] = useState<PinRow[]>([]);
+  const [referencePinsById, setReferencePinsById] = useState<Record<string, PinRow[]>>({});
+  const [currentPinsById, setCurrentPinsById] = useState<Record<string, PinRow[]>>({});
 
   const referenceCameraRef = useRef<HTMLInputElement>(null);
   const referenceGalleryRef = useRef<HTMLInputElement>(null);
@@ -119,16 +118,30 @@ export default function LayoutDetail({
   const openTasks = storeTasks.filter((t) => !t.done);
   const doneTasks = storeTasks.filter((t) => t.done);
 
+  const referencePins = latestReference
+    ? (referencePinsById[latestReference.id] ?? [])
+    : [];
+  const currentPins = latestCurrentForStore
+    ? (currentPinsById[latestCurrentForStore.id] ?? [])
+    : [];
+  const loadingReferencePins =
+    !!latestReference && !(latestReference.id in referencePinsById);
+  const loadingCurrentPins =
+    !!latestCurrentForStore && !(latestCurrentForStore.id in currentPinsById);
+
   useEffect(() => {
     if (!latestReference) return;
     let cancelled = false;
+    const referenceId = latestReference.id;
     supabase
       .from("pins")
       .select("*")
-      .eq("layout_reference_photo_id", latestReference.id)
+      .eq("layout_reference_photo_id", referenceId)
       .returns<PinRow[]>()
       .then(({ data }) => {
-        if (!cancelled) setReferencePins(data ?? []);
+        if (!cancelled) {
+          setReferencePinsById((prev) => ({ ...prev, [referenceId]: data ?? [] }));
+        }
       });
     return () => {
       cancelled = true;
@@ -139,13 +152,16 @@ export default function LayoutDetail({
   useEffect(() => {
     if (!latestCurrentForStore) return;
     let cancelled = false;
+    const currentId = latestCurrentForStore.id;
     supabase
       .from("pins")
       .select("*")
-      .eq("layout_current_photo_id", latestCurrentForStore.id)
+      .eq("layout_current_photo_id", currentId)
       .returns<PinRow[]>()
       .then(({ data }) => {
-        if (!cancelled) setCurrentPins(data ?? []);
+        if (!cancelled) {
+          setCurrentPinsById((prev) => ({ ...prev, [currentId]: data ?? [] }));
+        }
       });
     return () => {
       cancelled = true;
@@ -169,7 +185,10 @@ export default function LayoutDetail({
       .select()
       .single<PinRow>();
     if (error) return { error: error.message };
-    setReferencePins((prev) => [...prev, data]);
+    setReferencePinsById((prev) => ({
+      ...prev,
+      [latestReference.id]: [...(prev[latestReference.id] ?? []), data],
+    }));
   }
 
   async function handleSubmitCurrentPin(pin: {
@@ -188,7 +207,10 @@ export default function LayoutDetail({
       .select()
       .single<PinRow>();
     if (error) return { error: error.message };
-    setCurrentPins((prev) => [...prev, data]);
+    setCurrentPinsById((prev) => ({
+      ...prev,
+      [latestCurrentForStore.id]: [...(prev[latestCurrentForStore.id] ?? []), data],
+    }));
   }
 
   async function handleReferenceFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -212,7 +234,8 @@ export default function LayoutDetail({
         .insert({
           layout_id: layout.id,
           season,
-          year,
+          // year列は今後使わないが、既存のNOT NULL制約を満たすため現在年を入れておく
+          year: new Date().getFullYear(),
           storage_path: storagePath,
           uploaded_by: currentUserId,
         })
@@ -326,7 +349,7 @@ export default function LayoutDetail({
           <h2 className="text-sm font-bold text-gray-300">本部お手本写真</h2>
           {latestReference && (
             <span className="text-xs text-gray-500">
-              {latestReference.year}年{SEASON_LABEL[latestReference.season]}
+              {SEASON_LABEL[latestReference.season]}
             </span>
           )}
         </div>
@@ -346,12 +369,6 @@ export default function LayoutDetail({
               {SEASON_LABEL[s]}
             </button>
           ))}
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="w-20 rounded-md border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-center text-xs text-gray-100"
-          />
         </div>
 
         <input
@@ -372,13 +389,17 @@ export default function LayoutDetail({
 
         {latestReference && (
           <div className="mb-2">
-            <PhotoAnnotator
-              photoUrl={shelfImagePublicUrl(latestReference.storage_path)}
-              pins={referencePins}
-              currentUserId={currentUserId}
-              onSubmit={handleSubmitReferencePin}
-              hint="画像をタップして、コメントを貼り付けてください。"
-            />
+            {loadingReferencePins ? (
+              <LoadingOverlay variant="inline" label="読み込み中..." />
+            ) : (
+              <PhotoAnnotator
+                photoUrl={shelfImagePublicUrl(latestReference.storage_path)}
+                pins={referencePins}
+                currentUserId={currentUserId}
+                onSubmit={handleSubmitReferencePin}
+                hint="画像をタップして、コメントを貼り付けてください。"
+              />
+            )}
           </div>
         )}
 
@@ -446,13 +467,17 @@ export default function LayoutDetail({
               現在の売場
             </p>
             {latestCurrentForStore ? (
-              <PhotoAnnotator
-                photoUrl={shelfImagePublicUrl(latestCurrentForStore.storage_path)}
-                pins={currentPins}
-                currentUserId={currentUserId}
-                onSubmit={handleSubmitCurrentPin}
-                hint="タップしてコメントを貼り付け"
-              />
+              loadingCurrentPins ? (
+                <LoadingOverlay variant="inline" label="読み込み中..." />
+              ) : (
+                <PhotoAnnotator
+                  photoUrl={shelfImagePublicUrl(latestCurrentForStore.storage_path)}
+                  pins={currentPins}
+                  currentUserId={currentUserId}
+                  onSubmit={handleSubmitCurrentPin}
+                  hint="タップしてコメントを貼り付け"
+                />
+              )
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-md border border-blue-900 bg-neutral-900 text-[11px] text-gray-600">
                 未登録

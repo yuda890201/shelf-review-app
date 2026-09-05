@@ -7,8 +7,8 @@ import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { LayoutReferencePhotoRow, LayoutRow } from "@/lib/types";
 
 const SEASON_LABEL: Record<string, string> = {
-  spring: "春",
-  autumn: "秋",
+  spring: "春夏",
+  autumn: "秋冬",
 };
 
 export default function LayoutsList({
@@ -113,7 +113,7 @@ export default function LayoutsList({
                 </p>
                 <p className="truncate text-[11px] text-gray-500">
                   {reference
-                    ? `${reference.year}年${SEASON_LABEL[reference.season]} · 現在写真 ${coverage}/${totalStores}店舗`
+                    ? `${SEASON_LABEL[reference.season]} · 現在写真 ${coverage}/${totalStores}店舗`
                     : `現在写真 ${coverage}/${totalStores}店舗`}
                 </p>
                 {openTasks > 0 && (
