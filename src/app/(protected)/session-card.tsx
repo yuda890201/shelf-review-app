@@ -12,9 +12,11 @@ import type {
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 import PinChip from "@/components/pin-chip";
+import { formatRelativeTime } from "@/lib/format-time";
 
 export default function SessionCard({
   session,
+  posterName,
   sessionComments,
   cardSize,
   doneCount,
@@ -32,6 +34,7 @@ export default function SessionCard({
   onSessionUpdate,
 }: {
   session: SessionWithImage;
+  posterName: string | null;
   sessionComments: CommentRow[];
   cardSize: number;
   doneCount: number;
@@ -145,6 +148,9 @@ export default function SessionCard({
             {session.images.store_name}{" "}
             {session.images.shelf_category &&
               `/ ${session.images.shelf_category}`}
+          </p>
+          <p className="truncate text-[11px] text-gray-500">
+            {posterName ?? "スタッフ"} · {formatRelativeTime(session.created_at)}
           </p>
         </div>
         <div className="flex shrink-0 gap-1">

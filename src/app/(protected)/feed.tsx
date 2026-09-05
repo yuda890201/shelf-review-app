@@ -21,6 +21,7 @@ export default function Feed({
   initialClapCounts,
   initialComments,
   commentCounts,
+  profileNames,
   currentUserId,
 }: {
   initialSessions: SessionWithImage[];
@@ -28,6 +29,7 @@ export default function Feed({
   initialClapCounts: Record<string, number>;
   initialComments: CommentRow[];
   commentCounts: Record<string, number>;
+  profileNames: Record<string, string>;
   currentUserId: string | null;
 }) {
   const supabase = createClient();
@@ -325,6 +327,10 @@ export default function Feed({
             <SessionCard
               key={session.id}
               session={session}
+              posterName={
+                (session.facilitator_id && profileNames[session.facilitator_id]) ||
+                null
+              }
               sessionComments={sessionComments}
               cardSize={cardSize}
               doneCount={doneCount}
