@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentType, TagRow } from "@/lib/types";
 
@@ -25,6 +25,11 @@ export default function TagManagerModal({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    dialogRef.current?.showModal();
+  }, []);
 
   async function handleAdd() {
     const trimmed = newBody.trim();
@@ -78,13 +83,14 @@ export default function TagManagerModal({
   const sorted = [...tags].sort((a, b) => b.use_count - a.use_count);
 
   return (
-    <div className="fixed inset-0 z-50">
-      <button
-        type="button"
-        aria-label="閉じる"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60"
-      />
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === dialogRef.current) onClose();
+      }}
+      className="fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none border-none bg-black/60 p-0"
+    >
       <div
         className="slide-up-sheet absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-neutral-700 bg-neutral-900 p-4"
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -185,6 +191,6 @@ export default function TagManagerModal({
           ))}
         </ul>
       </div>
-    </div>
+    </dialog>
   );
 }

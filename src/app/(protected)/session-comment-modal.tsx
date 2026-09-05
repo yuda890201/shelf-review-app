@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
-import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import PinBoard from "./pin-board";
 
 export default function SessionCommentModal({
@@ -17,8 +16,11 @@ export default function SessionCommentModal({
   onClose: () => void;
 }) {
   const [comments, setComments] = useState<CommentRow[] | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
-  useBodyScrollLock(true);
+  useEffect(() => {
+    dialogRef.current?.showModal();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,13 +42,14 @@ export default function SessionCommentModal({
   if (!session.images) return null;
 
   return (
-    <div className="fixed inset-0 z-40">
-      <button
-        type="button"
-        aria-label="閉じる"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50"
-      />
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === dialogRef.current) onClose();
+      }}
+      className="fixed inset-0 z-40 m-0 h-full max-h-none w-full max-w-none border-none bg-black/50 p-0"
+    >
       <div className="slide-up-sheet absolute inset-x-0 bottom-0 flex max-h-[92vh] flex-col rounded-t-2xl bg-neutral-900 shadow-xl">
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
           <div className="min-w-0">
@@ -83,6 +86,6 @@ export default function SessionCommentModal({
           )}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
