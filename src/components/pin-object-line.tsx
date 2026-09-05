@@ -1,7 +1,12 @@
+import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT } from "@/lib/comment-pin";
+import { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
 import type { PinObjectKind } from "@/lib/types";
 
 const ARROW_SIZE = 11;
 const STROKE_WIDTH = 3.5;
+
+const TEXT_OUTLINE =
+  "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 5px rgba(0,0,0,0.7)";
 
 function arrowheadPath(x: number, y: number, angle: number, size: number) {
   const a1 = angle + Math.PI * 0.82;
@@ -24,6 +29,7 @@ export default function PinObjectLine({
   kind,
   color,
   dashed = false,
+  showLabel = true,
 }: {
   x1: number;
   y1: number;
@@ -34,6 +40,7 @@ export default function PinObjectLine({
   kind: PinObjectKind;
   color: string;
   dashed?: boolean;
+  showLabel?: boolean;
 }) {
   if (containerWidth <= 0 || containerHeight <= 0) return null;
 
@@ -56,34 +63,73 @@ export default function PinObjectLine({
             arrowheadPath(px1, py1, angle, ARROW_SIZE),
           ];
 
+  const label = OBJECT_KIND_LABEL[kind];
+  const labelWidthPx = BASE_WIDTH_PCT * containerWidth;
+  const labelHeightPx = BASE_HEIGHT_PCT * containerHeight;
+  const fontSizePx = Math.max(9, labelHeightPx * 0.65);
+  const duration = Math.max(4, label.length * 0.18);
+
   return (
-    <svg
-      className="pointer-events-none absolute left-0 top-0 z-20 overflow-visible"
-      width={containerWidth}
-      height={containerHeight}
-      viewBox={`0 0 ${containerWidth} ${containerHeight}`}
-    >
-      <line
-        x1={px1}
-        y1={py1}
-        x2={px2}
-        y2={py2}
-        stroke={color}
-        strokeWidth={STROKE_WIDTH}
-        strokeDasharray={dashed ? "7 6" : undefined}
-        strokeLinecap="round"
-      />
-      {arrowheads.map((d, i) => (
-        <path
-          key={i}
-          d={d}
-          fill="none"
+    <>
+      <svg
+        className="pointer-events-none absolute left-0 top-0 z-20 overflow-visible"
+        width={containerWidth}
+        height={containerHeight}
+        viewBox={`0 0 ${containerWidth} ${containerHeight}`}
+      >
+        <line
+          x1={px1}
+          y1={py1}
+          x2={px2}
+          y2={py2}
           stroke={color}
           strokeWidth={STROKE_WIDTH}
+          strokeDasharray={dashed ? "7 6" : undefined}
           strokeLinecap="round"
-          strokeLinejoin="round"
         />
-      ))}
-    </svg>
+        {arrowheads.map((d, i) => (
+          <path
+            key={i}
+            d={d}
+            fill="none"
+            stroke={color}
+            strokeWidth={STROKE_WIDTH}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+      </svg>
+
+      {showLabel && (
+        <div
+          className="pointer-events-none absolute z-20 overflow-hidden"
+          style={{
+            left: `${(px1 + px2) / 2}px`,
+            top: `${(py1 + py2) / 2}px`,
+            width: `${labelWidthPx}px`,
+            height: `${labelHeightPx}px`,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <span className="marquee-track" style={{ animationDuration: `${duration}s` }}>
+            {[0, 1].map((copy) => (
+              <span
+                key={copy}
+                aria-hidden={copy === 1}
+                className="whitespace-nowrap px-2 font-black tracking-wide"
+                style={{
+                  fontSize: `${fontSizePx}px`,
+                  lineHeight: `${labelHeightPx}px`,
+                  color,
+                  textShadow: TEXT_OUTLINE,
+                }}
+              >
+                {label}
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
+    </>
   );
 }

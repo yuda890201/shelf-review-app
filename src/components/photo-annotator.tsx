@@ -345,6 +345,7 @@ export default function PhotoAnnotator({
             kind="move"
             color={PENDING_COLOR}
             dashed
+            showLabel={false}
           />
         )}
 
@@ -358,6 +359,7 @@ export default function PhotoAnnotator({
             containerHeight={imgSize.height}
             kind="move"
             color={PENDING_COLOR}
+            showLabel={false}
           />
         )}
 

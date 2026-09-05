@@ -386,6 +386,7 @@ export default function CommentPinBoard({
               kind="move"
               color={PENDING_COLOR}
               dashed
+              showLabel={false}
             />
           )}
 
@@ -399,6 +400,7 @@ export default function CommentPinBoard({
               containerHeight={imgSize.height}
               kind="move"
               color={PENDING_COLOR}
+              showLabel={false}
             />
           )}
 
