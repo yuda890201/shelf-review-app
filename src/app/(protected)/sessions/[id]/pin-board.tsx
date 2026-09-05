@@ -141,6 +141,7 @@ export default function PinBoard({
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [tags, setTags] = useState<Record<CommentType, TagRow[]>>({
     good: [],
     bad: [],
@@ -160,6 +161,15 @@ export default function PinBoard({
     });
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setViewportHeight(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
   }, []);
 
   useEffect(() => {
@@ -578,15 +588,16 @@ export default function PinBoard({
 
       {pendingPin && (
         <div
-          className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl border-t border-neutral-700 p-4 shadow-lg"
+          className="fixed inset-x-0 bottom-0 z-30 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-neutral-700 shadow-lg"
           style={{
             background: "rgba(23,23,23,0.92)",
-            paddingBottom: "calc(1rem + env(safe-area-inset-bottom))",
+            maxHeight: viewportHeight ? viewportHeight * 0.92 : undefined,
           }}
         >
           <form
+            id="pin-comment-form"
             onSubmit={handleSubmitComment}
-            className="mx-auto flex w-full max-w-lg flex-col gap-2"
+            className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4"
           >
             <div className="flex gap-2">
               {(["good", "bad"] as CommentType[]).map((t) => (
@@ -656,24 +667,28 @@ export default function PinBoard({
                 右下の◯でサイズ変更
               </span>
             </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingPin(null)}
-                className="flex-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200"
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || !body.trim()}
-                className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                投稿
-              </button>
-            </div>
           </form>
+
+          <div
+            className="mx-auto flex w-full max-w-lg shrink-0 gap-2 border-t border-neutral-700 px-4 pt-3"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          >
+            <button
+              type="button"
+              onClick={() => setPendingPin(null)}
+              className="flex-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200"
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              form="pin-comment-form"
+              disabled={submitting || !body.trim()}
+              className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              投稿
+            </button>
+          </div>
         </div>
       )}
 
