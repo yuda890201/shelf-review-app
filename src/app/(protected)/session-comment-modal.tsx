@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentRow, SessionWithImage } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
-import PinBoard from "./sessions/[id]/pin-board";
+import PinBoard from "./pin-board";
 
 export default function SessionCommentModal({
   session,
@@ -60,12 +59,6 @@ export default function SessionCommentModal({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <Link
-              href={`/sessions/${session.id}`}
-              className="text-xs text-gray-400 underline"
-            >
-              詳細ページ
-            </Link>
             <button
               type="button"
               onClick={onClose}

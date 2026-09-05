@@ -160,7 +160,7 @@ export default function NewSessionPage() {
     }
 
     if (sessionIds.length === 1) {
-      router.push(`/sessions/${sessionIds[0]}`);
+      router.push(`/?session=${sessionIds[0]}`);
     } else {
       router.push("/");
     }

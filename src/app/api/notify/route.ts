@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   let targetUserIds: string[] = [];
   let title = "売場添削アプリ";
   let message = "";
-  const url = `/sessions/${body.sessionId}`;
+  const url = `/?session=${body.sessionId}`;
 
   if (body.type === "new_session") {
     const { data: subs } = await supabase

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type {
   ClapRow,
   CommentRow,
@@ -11,7 +10,7 @@ import type {
   ReactionType,
   SessionWithImage,
 } from "@/lib/types";
-import PinChip from "@/components/pin-chip";
+import SessionCard from "./session-card";
 import SessionCommentModal from "./session-comment-modal";
 
 type SortMode = "new" | "needs_work";
@@ -32,6 +31,8 @@ export default function Feed({
   currentUserId: string | null;
 }) {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const [sessions, setSessions] = useState<SessionWithImage[]>(initialSessions);
   const [reactions, setReactions] = useState<ReactionRow[]>(initialReactions);
   const [clapCounts, setClapCounts] =
     useState<Record<string, number>>(initialClapCounts);
@@ -40,7 +41,9 @@ export default function Feed({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [poppingId, setPoppingId] = useState<string | null>(null);
-  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+  const [openSessionId, setOpenSessionId] = useState<string | null>(
+    () => searchParams.get("session"),
+  );
   const lastTapRef = useRef<Record<string, number>>({});
   const listRef = useRef<HTMLDivElement>(null);
   const [cardSize, setCardSize] = useState(0);
@@ -182,8 +185,12 @@ export default function Feed({
     }
   }
 
+  function handleSessionUpdate(updated: SessionWithImage) {
+    setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
   async function handleShare(session: SessionWithImage) {
-    const url = `${window.location.origin}/sessions/${session.id}`;
+    const url = `${window.location.origin}/?session=${session.id}`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -201,25 +208,25 @@ export default function Feed({
     }
   }
 
-  const openSession = initialSessions.find((s) => s.id === openSessionId) ?? null;
+  const openSession = sessions.find((s) => s.id === openSessionId) ?? null;
 
   const stores = useMemo(
     () =>
-      [...new Set(initialSessions.map((s) => s.images?.store_name).filter(Boolean))] as string[],
-    [initialSessions],
+      [...new Set(sessions.map((s) => s.images?.store_name).filter(Boolean))] as string[],
+    [sessions],
   );
   const categories = useMemo(
     () =>
       [
         ...new Set(
-          initialSessions.map((s) => s.images?.shelf_category).filter(Boolean),
+          sessions.map((s) => s.images?.shelf_category).filter(Boolean),
         ),
       ] as string[],
-    [initialSessions],
+    [sessions],
   );
 
   const visibleSessions = useMemo(() => {
-    let list = initialSessions.filter((s) => {
+    let list = sessions.filter((s) => {
       if (storeFilter && s.images?.store_name !== storeFilter) return false;
       if (categoryFilter && s.images?.shelf_category !== categoryFilter) return false;
       return true;
@@ -233,11 +240,11 @@ export default function Feed({
       list = [...list].sort((a, b) => rateOf(b.id) - rateOf(a.id));
     }
     return list;
-  }, [initialSessions, storeFilter, categoryFilter, sortMode, reactions]);
+  }, [sessions, storeFilter, categoryFilter, sortMode, reactions]);
 
   return (
     <div>
-      {initialSessions.length > 0 && (
+      {sessions.length > 0 && (
         <div className="mx-auto mb-4 flex max-w-md flex-wrap gap-2">
           <select
             value={storeFilter}
@@ -274,12 +281,12 @@ export default function Feed({
         </div>
       )}
 
-      {initialSessions.length === 0 && (
+      {sessions.length === 0 && (
         <p className="text-sm text-gray-500">
           まだ投稿がありません。売場写真をアップロードして最初の投稿を作りましょう。
         </p>
       )}
-      {initialSessions.length > 0 && visibleSessions.length === 0 && (
+      {sessions.length > 0 && visibleSessions.length === 0 && (
         <p className="text-sm text-gray-500">条件に一致する投稿がありません。</p>
       )}
 
@@ -298,164 +305,30 @@ export default function Feed({
           const needsWorkCount = sessionReactions.filter(
             (r) => r.reaction_type === "needs_work",
           ).length;
-          const total = doneCount + needsWorkCount;
-          const doneRate = total ? Math.round((doneCount / total) * 100) : 0;
-          const needsWorkRate = total ? 100 - doneRate : 0;
           const myReaction = sessionReactions.find(
             (r) => r.user_id === currentUserId,
           )?.reaction_type;
-          const commentCount = commentCounts[session.id] ?? 0;
-          const clapCount = clapCounts[session.id] ?? 0;
 
           return (
-            <article
+            <SessionCard
               key={session.id}
-              className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
-            >
-              <Link
-                href={`/sessions/${session.id}`}
-                className="flex items-center justify-between px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-100">
-                    {session.title || "無題のセッション"}
-                  </p>
-                  <p className="truncate text-xs text-gray-500">
-                    {session.images.store_name}{" "}
-                    {session.images.shelf_category &&
-                      `/ ${session.images.shelf_category}`}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                  {session.resolved_at && (
-                    <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
-                      ✅ 対応済み
-                    </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      session.status === "open"
-                        ? "bg-green-900/50 text-green-300"
-                        : "bg-neutral-700 text-gray-300"
-                    }`}
-                  >
-                    {session.status === "open" ? "進行中" : "クローズ済"}
-                  </span>
-                </div>
-              </Link>
-
-              <div
-                className="relative select-none"
-                onClick={(e) => handlePhotoTap(session.id, e)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={shelfImagePublicUrl(session.images.storage_path)}
-                  alt=""
-                  className="aspect-square w-full bg-neutral-800 object-cover"
-                  draggable={false}
-                />
-
-                {cardSize > 0 &&
-                  sessionComments.map((c) => (
-                    <PinChip
-                      key={c.id}
-                      x={c.position_x}
-                      y={c.position_y}
-                      widthPx={c.width_pct * cardSize}
-                      heightPx={c.height_pct * cardSize}
-                      rotationDeg={c.rotation_deg}
-                      color={c.color}
-                      text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
-                    />
-                  ))}
-
-                {myReaction && (
-                  <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
-                    {myReaction === "done" ? "✅" : "🔧"}
-                  </div>
-                )}
-
-                {poppingId === session.id && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <span className="heart-pop text-7xl">🙏</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="px-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => handleClap(session.id)}
-                  className="mb-2 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-gray-200 active:bg-neutral-700"
-                >
-                  🙏 ありがとう {clapCount}
-                </button>
-
-                <div className="mb-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleReact(session.id, "done")}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
-                      myReaction === "done"
-                        ? "border-blue-500 bg-blue-950/60 text-blue-300"
-                        : "border-neutral-700 text-gray-400"
-                    }`}
-                  >
-                    ✅ 完成 {doneCount}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleReact(session.id, "needs_work")}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
-                      myReaction === "needs_work"
-                        ? "border-orange-500 bg-orange-950/60 text-orange-300"
-                        : "border-neutral-700 text-gray-400"
-                    }`}
-                  >
-                    🔧 まだまだ {needsWorkCount}
-                  </button>
-                </div>
-
-                <div className="mb-2 flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setOpenSessionId(session.id)}
-                    className="flex items-center gap-1 text-gray-400"
-                  >
-                    <span className="text-xl leading-none">💬</span>
-                    <span className="text-xs">{commentCount}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleShare(session)}
-                    className="text-xl leading-none text-gray-400"
-                    aria-label="共有"
-                  >
-                    📤
-                  </button>
-                </div>
-
-                {total > 0 && (
-                  <div className="mb-2">
-                    <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
-                      <div
-                        className="bg-blue-500"
-                        style={{ width: `${doneRate}%` }}
-                      />
-                      <div
-                        className="bg-orange-400"
-                        style={{ width: `${needsWorkRate}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-                      <span>完成率 {doneRate}%</span>
-                      <span>まだまだ率 {needsWorkRate}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </article>
+              session={session}
+              sessionComments={sessionComments}
+              cardSize={cardSize}
+              doneCount={doneCount}
+              needsWorkCount={needsWorkCount}
+              myReaction={myReaction}
+              commentCount={commentCounts[session.id] ?? 0}
+              clapCount={clapCounts[session.id] ?? 0}
+              isPopping={poppingId === session.id}
+              currentUserId={currentUserId}
+              onReact={handleReact}
+              onClap={handleClap}
+              onPhotoTap={handlePhotoTap}
+              onShare={handleShare}
+              onOpenComments={setOpenSessionId}
+              onSessionUpdate={handleSessionUpdate}
+            />
           );
         })}
       </div>

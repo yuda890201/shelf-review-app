@@ -81,7 +81,7 @@ export default async function CommentsPage({
         {comments?.map((c) => (
           <li key={c.id}>
             <Link
-              href={`/sessions/${c.session_id}`}
+              href={`/?session=${c.session_id}`}
               className="block rounded-md border border-neutral-800 bg-neutral-900 p-3 hover:border-blue-500"
             >
               <div className="mb-1 flex items-center gap-2 text-xs">
