@@ -117,7 +117,6 @@ export default function PhotoAnnotator({
     if (readOnly || !currentUserId || pendingPin || pendingLine) return;
     const rect = imageRef.current?.getBoundingClientRect();
     if (!rect) return;
-    e.preventDefault();
     const startClientX = e.clientX;
     const startClientY = e.clientY;
     const startX = (startClientX - rect.left) / rect.width;
@@ -125,6 +124,13 @@ export default function PhotoAnnotator({
     let moved = false;
     let endX = startX;
     let endY = startY;
+
+    function cleanup() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      gestureCleanupRef.current = null;
+    }
 
     function onMove(ev: PointerEvent) {
       const dx = ev.clientX - startClientX;
@@ -140,9 +146,7 @@ export default function PhotoAnnotator({
     }
 
     function onUp() {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      gestureCleanupRef.current = null;
+      cleanup();
       setDraftLine(null);
       if (moved) {
         setPendingLine({ x1: startX, y1: startY, x2: endX, y2: endY });
@@ -154,9 +158,17 @@ export default function PhotoAnnotator({
       }
     }
 
-    gestureCleanupRef.current = onUp;
+    function onCancel() {
+      // ブラウザが縦スクロールとしてジェスチャーを奪った場合(touch-action: pan-y)。
+      // 誤タップ・誤ピン打ちを防ぐため何もせず中断する。
+      cleanup();
+      setDraftLine(null);
+    }
+
+    gestureCleanupRef.current = cleanup;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   }
 
   function distanceFromPinCenter(pin: PendingPin, clientX: number, clientY: number) {
@@ -283,7 +295,7 @@ export default function PhotoAnnotator({
       <div
         ref={imageRef}
         onPointerDown={handleContainerPointerDown}
-        style={!readOnly && currentUserId ? { touchAction: "none" } : undefined}
+        style={!readOnly && currentUserId ? { touchAction: "pan-y" } : undefined}
         className={`relative w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 ${
           readOnly ? "" : "cursor-crosshair"
         }`}

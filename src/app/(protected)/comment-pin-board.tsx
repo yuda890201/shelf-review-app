@@ -157,10 +157,15 @@ export default function CommentPinBoard({
       }
     }
 
-    function onUp() {
+    function cleanup() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       gestureCleanupRef.current = null;
+    }
+
+    function onUp() {
+      cleanup();
       setDraftLine(null);
       if (moved) {
         setPendingLine({ x1: startX, y1: startY, x2: endX, y2: endY });
@@ -169,9 +174,17 @@ export default function CommentPinBoard({
       }
     }
 
-    gestureCleanupRef.current = onUp;
+    function onCancel() {
+      // ブラウザが縦スクロールとしてジェスチャーを奪った場合(touch-action: pan-y)。
+      // 誤タップ・誤ピン打ちを防ぐため何もせず中断する。
+      cleanup();
+      setDraftLine(null);
+    }
+
+    gestureCleanupRef.current = cleanup;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   }
 
   useEffect(() => {
@@ -328,7 +341,7 @@ export default function CommentPinBoard({
         <div
           ref={imageRef}
           onPointerDown={handleContainerPointerDown}
-          style={canComment ? { touchAction: "none" } : undefined}
+          style={canComment ? { touchAction: "pan-y" } : undefined}
           className={`relative w-full overflow-hidden bg-neutral-800 ${
             stickyHeader ? "rounded-lg border border-neutral-800" : ""
           } ${canComment ? "cursor-crosshair" : ""}`}
