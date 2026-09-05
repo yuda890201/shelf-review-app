@@ -6,10 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type {
   ClapRow,
+  CommentRow,
   ReactionRow,
   ReactionType,
   SessionWithImage,
 } from "@/lib/types";
+import PinChip from "@/components/pin-chip";
 import SessionCommentModal from "./session-comment-modal";
 
 type SortMode = "new" | "needs_work";
@@ -18,12 +20,14 @@ export default function Feed({
   initialSessions,
   initialReactions,
   initialClapCounts,
+  initialComments,
   commentCounts,
   currentUserId,
 }: {
   initialSessions: SessionWithImage[];
   initialReactions: ReactionRow[];
   initialClapCounts: Record<string, number>;
+  initialComments: CommentRow[];
   commentCounts: Record<string, number>;
   currentUserId: string | null;
 }) {
@@ -31,12 +35,26 @@ export default function Feed({
   const [reactions, setReactions] = useState<ReactionRow[]>(initialReactions);
   const [clapCounts, setClapCounts] =
     useState<Record<string, number>>(initialClapCounts);
+  const [comments, setComments] = useState<CommentRow[]>(initialComments);
   const [storeFilter, setStoreFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [poppingId, setPoppingId] = useState<string | null>(null);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const lastTapRef = useRef<Record<string, number>>({});
+  const listRef = useRef<HTMLDivElement>(null);
+  const [cardSize, setCardSize] = useState(0);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setCardSize(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -76,6 +94,16 @@ export default function Feed({
             ...prev,
             [row.session_id]: (prev[row.session_id] ?? 0) + 1,
           }));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments" },
+        (payload) => {
+          const row = payload.new as CommentRow;
+          setComments((prev) =>
+            prev.some((c) => c.id === row.id) ? prev : [...prev, row],
+          );
         },
       )
       .subscribe();
@@ -255,9 +283,12 @@ export default function Feed({
         <p className="text-sm text-gray-500">条件に一致する投稿がありません。</p>
       )}
 
-      <div className="mx-auto flex max-w-md flex-col gap-6">
+      <div ref={listRef} className="mx-auto flex max-w-md flex-col gap-6">
         {visibleSessions.map((session) => {
           if (!session.images) return null;
+          const sessionComments = comments.filter(
+            (c) => c.session_id === session.id,
+          );
           const sessionReactions = reactions.filter(
             (r) => r.session_id === session.id,
           );
@@ -324,6 +355,20 @@ export default function Feed({
                   className="aspect-square w-full bg-neutral-800 object-cover"
                   draggable={false}
                 />
+
+                {cardSize > 0 &&
+                  sessionComments.map((c) => (
+                    <PinChip
+                      key={c.id}
+                      x={c.position_x}
+                      y={c.position_y}
+                      widthPx={c.width_pct * cardSize}
+                      heightPx={c.height_pct * cardSize}
+                      rotationDeg={c.rotation_deg}
+                      color={c.color}
+                      text={`${c.comment_type === "good" ? "✅" : "⚠️"} ${c.body}`}
+                    />
+                  ))}
 
                 {myReaction && (
                   <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">

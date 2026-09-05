@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { ReactionRow, SessionWithImage } from "@/lib/types";
+import type { CommentRow, ReactionRow, SessionWithImage } from "@/lib/types";
 import Feed from "./feed";
 
 export default async function HomePage() {
@@ -29,10 +29,13 @@ export default async function HomePage() {
     clapCounts[row.session_id] = (clapCounts[row.session_id] ?? 0) + 1;
   }
 
-  const { data: commentRows } = await supabase.from("comments").select("session_id");
+  const { data: comments } = await supabase
+    .from("comments")
+    .select("*")
+    .returns<CommentRow[]>();
 
   const commentCounts: Record<string, number> = {};
-  for (const row of commentRows ?? []) {
+  for (const row of comments ?? []) {
     commentCounts[row.session_id] = (commentCounts[row.session_id] ?? 0) + 1;
   }
 
@@ -56,6 +59,7 @@ export default async function HomePage() {
       initialSessions={sessions ?? []}
       initialReactions={reactions ?? []}
       initialClapCounts={clapCounts}
+      initialComments={comments ?? []}
       commentCounts={commentCounts}
       currentUserId={user?.id ?? null}
     />

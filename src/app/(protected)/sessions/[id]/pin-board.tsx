@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
+import PinChip from "@/components/pin-chip";
 import TagManagerModal from "./tag-manager-modal";
 
 type PendingPin = { x: number; y: number };
@@ -38,83 +39,6 @@ function colorForId(id: string) {
 
 const TEXT_OUTLINE =
   "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 5px rgba(0,0,0,0.7)";
-
-function PinChip({
-  x,
-  y,
-  widthPx,
-  heightPx,
-  rotationDeg,
-  color,
-  text,
-  onClick,
-  isActive,
-}: {
-  x: number;
-  y: number;
-  widthPx: number;
-  heightPx: number;
-  rotationDeg: number;
-  color: string;
-  text: string;
-  onClick?: (e: React.MouseEvent) => void;
-  isActive?: boolean;
-}) {
-  const fontSizePx = Math.max(9, heightPx * 0.65);
-  const duration = Math.max(4, text.length * 0.18);
-  const style: React.CSSProperties = {
-    left: `${x * 100}%`,
-    top: `${y * 100}%`,
-    width: `${widthPx}px`,
-    height: `${heightPx}px`,
-    transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
-    borderColor: color,
-  };
-  const track = (
-    <span className="marquee-track" style={{ animationDuration: `${duration}s` }}>
-      {[0, 1].map((copy) => (
-        <span
-          key={copy}
-          aria-hidden={copy === 1}
-          className="whitespace-nowrap px-2 font-black tracking-wide"
-          style={{
-            fontSize: `${fontSizePx}px`,
-            lineHeight: `${heightPx}px`,
-            color,
-            textShadow: TEXT_OUTLINE,
-          }}
-        >
-          {text || " "}
-        </span>
-      ))}
-    </span>
-  );
-
-  if (!onClick) {
-    return (
-      <div
-        className="pointer-events-none absolute z-20 overflow-hidden rounded border-2 bg-transparent"
-        style={style}
-      >
-        {track}
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={style}
-      className={`absolute z-10 overflow-hidden rounded border-2 bg-transparent ${
-        isActive ? "ring-2 ring-blue-400" : ""
-      }`}
-      title={text}
-    >
-      {track}
-    </button>
-  );
-}
 
 export default function PinBoard({
   session,
@@ -291,6 +215,19 @@ export default function PinBoard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id]);
+
+  const composerOpen = !!pendingPin;
+  useEffect(() => {
+    if (!composerOpen) return;
+    // 入力欄を開いている間は背景のスクロールを止める。ロックしないと
+    // 背景ページのスクロール位置が動いてブラウザのアドレスバーが
+    // 再表示され、写真がさらに隠れる原因になる。
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [composerOpen]);
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!isOpen) return;
