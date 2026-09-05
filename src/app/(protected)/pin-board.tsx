@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import type { CommentRow, CommentType, SessionWithImage, TagRow } from "@/lib/types";
 import PinChip from "@/components/pin-chip";
-import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import TagManagerModal from "./tag-manager-modal";
 
 type PendingPin = { x: number; y: number };
@@ -47,16 +45,15 @@ export default function PinBoard({
   initialComments,
   currentUserId,
   isOpen,
-  showList = true,
 }: {
   session: SessionWithImage;
   initialComments: CommentRow[];
   currentUserId: string | null;
   isOpen: boolean;
-  showList?: boolean;
 }) {
   const supabase = createClient();
   const imageRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
 
   const [comments, setComments] = useState<CommentRow[]>(initialComments);
   const [pendingPin, setPendingPin] = useState<PendingPin | null>(null);
@@ -67,7 +64,6 @@ export default function PinBoard({
   const [submitting, setSubmitting] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [tags, setTags] = useState<Record<CommentType, TagRow[]>>({
     good: [],
     bad: [],
@@ -87,15 +83,6 @@ export default function PinBoard({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => setViewportHeight(vv.height);
-    update();
-    vv.addEventListener("resize", update);
-    return () => vv.removeEventListener("resize", update);
   }, []);
 
   useEffect(() => {
@@ -219,12 +206,11 @@ export default function PinBoard({
   }, [session.id]);
 
   const composerOpen = !!pendingPin;
-  const composerDialogRef = useRef<HTMLDialogElement>(null);
-  const composerScrollRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (composerOpen) composerDialogRef.current?.showModal();
+    if (composerOpen) {
+      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }, [composerOpen]);
-  useBodyScrollLock(composerScrollRef, composerOpen);
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!isOpen) return;
@@ -377,17 +363,13 @@ export default function PinBoard({
 
   return (
     <div>
-      {isOpen && (
-        <p className="mb-2 text-xs text-gray-500">
-          画像をタップして、気づいた箇所にピンを打ってください。
-        </p>
-      )}
+      <div className="sticky top-0 z-10 -mx-3 -mt-3 bg-neutral-900 px-3 pb-2 pt-3">
+        {isOpen && (
+          <p className="mb-2 text-xs text-gray-500">
+            画像をタップして、気づいた箇所にピンを打ってください。
+          </p>
+        )}
 
-      <div
-        className={
-          showList ? "grid grid-cols-1 gap-6 md:grid-cols-[2fr_1fr]" : ""
-        }
-      >
         <div
           ref={imageRef}
           onClick={handleImageClick}
@@ -477,66 +459,17 @@ export default function PinBoard({
             </div>
           )}
         </div>
-
-        {showList && !pendingPin && (
-          <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-bold text-gray-300">
-              コメント ({sortedComments.length})
-            </h2>
-            {sortedComments.length === 0 && (
-              <p className="text-xs text-gray-500">まだコメントはありません。</p>
-            )}
-            <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
-              {sortedComments.map((c, i) => (
-                <li
-                  key={c.id}
-                  onClick={() => setActiveCommentId(c.id === activeCommentId ? null : c.id)}
-                  className={`cursor-pointer rounded-md border p-2 text-sm ${
-                    activeCommentId === c.id
-                      ? "border-blue-400 bg-blue-950/50"
-                      : "border-neutral-800 bg-neutral-900"
-                  }`}
-                >
-                  <div className="mb-1 flex items-center gap-2 text-xs">
-                    <span className="font-bold text-gray-500">#{i + 1}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 font-medium ${
-                        c.comment_type === "good"
-                          ? "bg-green-900/50 text-green-300"
-                          : "bg-red-900/50 text-red-300"
-                      }`}
-                    >
-                      {TYPE_LABEL[c.comment_type]}
-                    </span>
-                    <span className="ml-auto text-gray-500">
-                      {new Date(c.created_at).toLocaleTimeString("ja-JP")}
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-gray-200">{c.body}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
 
-      {pendingPin &&
-        createPortal(
-          <dialog
-            ref={composerDialogRef}
-            onClose={() => setPendingPin(null)}
-            className="slide-down-sheet fixed inset-x-0 top-0 z-30 m-0 flex max-h-[58vh] w-full max-w-none flex-col rounded-b-2xl border-0 border-b border-b-neutral-700 p-0 shadow-lg backdrop:bg-transparent"
-            style={{
-              background: "rgba(23,23,23,0.92)",
-              maxHeight: viewportHeight ? viewportHeight * 0.58 : undefined,
-              paddingTop: "env(safe-area-inset-top)",
-            }}
-          >
+      {pendingPin && (
+        <div
+          ref={composerRef}
+          className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
+        >
           <form
             id="pin-comment-form"
-            ref={composerScrollRef}
             onSubmit={handleSubmitComment}
-            className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4"
+            className="flex flex-col gap-2"
           >
             <div className="flex gap-2">
               {(["good", "bad"] as CommentType[]).map((t) => (
@@ -607,7 +540,7 @@ export default function PinBoard({
             </div>
           </form>
 
-          <div className="mx-auto flex w-full max-w-lg shrink-0 gap-2 border-t border-neutral-700 px-4 pb-3 pt-3">
+          <div className="flex gap-2 border-t border-neutral-700 pt-2">
             <button
               type="button"
               onClick={() => setPendingPin(null)}
@@ -624,9 +557,8 @@ export default function PinBoard({
               投稿
             </button>
           </div>
-          </dialog>,
-          document.body,
-        )}
+        </div>
+      )}
 
       {tagManagerOpen && (
         <TagManagerModal

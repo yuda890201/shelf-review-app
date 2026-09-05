@@ -53,10 +53,13 @@ export default function SessionCommentModal({
       onClick={(e) => {
         if (e.target === dialogRef.current) onClose();
       }}
-      className="fixed inset-0 z-40 m-0 h-full max-h-none w-full max-w-none border-none bg-black/50 p-0"
+      className="fixed inset-0 z-40 m-0 h-full max-h-none w-full max-w-none border-none bg-neutral-900 p-0"
     >
-      <div className="slide-up-sheet absolute inset-x-0 bottom-0 flex max-h-[92vh] flex-col rounded-t-2xl bg-neutral-900 shadow-xl">
-        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+      <div className="slide-up-sheet flex h-full w-full flex-col">
+        <div
+          className="flex items-center justify-between border-b border-neutral-800 px-4 pb-3"
+          style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+        >
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-gray-100">
               {session.title || "無題のセッション"}
@@ -86,7 +89,6 @@ export default function SessionCommentModal({
               initialComments={comments}
               currentUserId={currentUserId}
               isOpen={session.status === "open"}
-              showList={false}
             />
           )}
         </div>
