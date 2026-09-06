@@ -37,7 +37,6 @@ export default function SessionCard({
   onReact,
   onClap,
   onShare,
-  onOpenComments,
   onSessionUpdate,
 }: {
   session: SessionWithImage;
@@ -56,7 +55,6 @@ export default function SessionCard({
   onReact: (sessionId: string, type: ReactionType) => void;
   onClap: (sessionId: string) => void;
   onShare: (session: SessionWithImage) => void;
-  onOpenComments: (sessionId: string) => void;
   onSessionUpdate: (session: SessionWithImage) => void;
 }) {
   const supabase = createClient();
@@ -179,7 +177,10 @@ export default function SessionCard({
   }
 
   return (
-    <article className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+    <article
+      id={`session-${session.id}`}
+      className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+    >
       {resolving && <LoadingOverlay label="対応済み写真を登録中..." />}
 
       <div className="flex items-center justify-between px-3 py-2">
@@ -308,14 +309,10 @@ export default function SessionCard({
         </div>
 
         <div className="mb-2 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => onOpenComments(session.id)}
-            className="flex items-center gap-1 text-gray-400"
-          >
+          <span className="flex items-center gap-1 text-gray-400">
             <span className="text-xl leading-none">💬</span>
             <span className="text-xs">{commentCount}</span>
-          </button>
+          </span>
           <button
             type="button"
             onClick={() => onShare(session)}

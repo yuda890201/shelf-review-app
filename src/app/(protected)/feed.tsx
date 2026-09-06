@@ -13,7 +13,6 @@ import type {
   TagRow,
 } from "@/lib/types";
 import SessionCard from "./session-card";
-import SessionCommentModal from "./session-comment-modal";
 
 type SortMode = "new" | "needs_work";
 
@@ -50,18 +49,17 @@ export default function Feed({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [poppingId, setPoppingId] = useState<string | null>(null);
-  const [openSessionId, setOpenSessionId] = useState<string | null>(
-    () => searchParams.get("session"),
-  );
 
   useEffect(() => {
-    // ?session=<id> はモーダルを自動で開くためだけの一時的なパラメータ。
-    // URLに残したままだとリロードや再訪問のたびに開き直してしまう
-    // (背景スクロールがロックされたまま戻れなくなる不具合の原因になる)ので、
+    // ?session=<id> は共有リンクから開いたときにその投稿までスクロールするための
+    // 一時的なパラメータ。URLに残したままだと再訪問のたびにスクロールし直してしまうので、
     // 読み取ったら一度きりで消す。
-    if (searchParams.get("session")) {
-      router.replace("/", { scroll: false });
-    }
+    const targetId = searchParams.get("session");
+    if (!targetId) return;
+    router.replace("/", { scroll: false });
+    document
+      .getElementById(`session-${targetId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -273,8 +271,6 @@ export default function Feed({
     }
   }
 
-  const openSession = sessions.find((s) => s.id === openSessionId) ?? null;
-
   const stores = useMemo(
     () =>
       [...new Set(sessions.map((s) => s.images?.store_name).filter(Boolean))] as string[],
@@ -396,20 +392,11 @@ export default function Feed({
               onReact={handleReact}
               onClap={handleClap}
               onShare={handleShare}
-              onOpenComments={setOpenSessionId}
               onSessionUpdate={handleSessionUpdate}
             />
           );
         })}
       </div>
-
-      {openSession?.images && (
-        <SessionCommentModal
-          session={openSession}
-          currentUserId={currentUserId}
-          onClose={() => setOpenSessionId(null)}
-        />
-      )}
     </div>
   );
 }
