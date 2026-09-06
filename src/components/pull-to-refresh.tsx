@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 const PULL_THRESHOLD_PX = 64;
 const MAX_PULL_PX = 100;
 const RESISTANCE = 0.5;
+// 更新が一瞬で終わるとスピナーが一瞬しか見えず動いたか分かりにくいため、最低でもこの時間は表示する
+const MIN_REFRESHING_DISPLAY_MS = 600;
 
 export default function PullToRefresh({
   onRefresh,
@@ -48,8 +50,11 @@ export default function PullToRefresh({
     if (pullDistance >= PULL_THRESHOLD_PX) {
       setRefreshing(true);
       setPullDistance(PULL_THRESHOLD_PX);
+      const minDisplay = new Promise<void>((resolve) =>
+        setTimeout(resolve, MIN_REFRESHING_DISPLAY_MS),
+      );
       try {
-        await onRefresh();
+        await Promise.all([onRefresh(), minDisplay]);
       } finally {
         setRefreshing(false);
         setPullDistance(0);
