@@ -10,6 +10,7 @@ const PAD_TOP = 66;
 const CONTENT_WIDTH = SHEET_WIDTH - PAD_X * 2;
 
 const PAPER = "#fbfaf5";
+const LETTERBOX = "#e9e4d4";
 const INK = "#201e18";
 const INK_SOFT = "#6b6656";
 const HAIR = "#e2ddcd";
@@ -25,6 +26,9 @@ export type FeedbackSheetPin = {
   position_y: number;
   end_position_x: number | null;
   end_position_y: number | null;
+  width_pct: number;
+  height_pct: number;
+  rotation_deg: number;
   comment_type: CommentType;
   body: string;
   object_kind: PinObjectKind | null;
@@ -51,6 +55,8 @@ export type FeedbackSheetParams = {
   reference: FeedbackSheetReference | null;
 };
 
+type Rect = { x: number; y: number; w: number; h: number };
+
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -61,21 +67,32 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-/** object-fit: cover 相当で画像をボックスに描画する */
-function drawCover(
+/**
+ * object-fit: contain 相当で画像をボックス内に収める(トリミングしない)。
+ * ピンの位置はコメント時点の元画像に対する相対座標なので、cover(トリミング)で
+ * 描画すると見えている範囲とピン座標がずれてしまう。必ずcontainで、実際に
+ * 描画された矩形(戻り値)を基準にピンを配置すること。
+ */
+function containRect(imgW: number, imgH: number, boxW: number, boxH: number): Rect {
+  const scale = Math.min(boxW / imgW, boxH / imgH);
+  const w = imgW * scale;
+  const h = imgH * scale;
+  return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h };
+}
+
+function drawImageFitted(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
-  const scale = Math.max(w / img.width, h / img.height);
-  const sw = w / scale;
-  const sh = h / scale;
-  const sx = (img.width - sw) / 2;
-  const sy = (img.height - sh) / 2;
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+): Rect {
+  const fit = containRect(img.naturalWidth, img.naturalHeight, boxW, boxH);
+  ctx.fillStyle = LETTERBOX;
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.drawImage(img, boxX + fit.x, boxY + fit.y, fit.w, fit.h);
+  return { x: boxX + fit.x, y: boxY + fit.y, w: fit.w, h: fit.h };
 }
 
 /** 日本語は単語区切りが無いため、文字単位でmaxWidthに収まるよう折り返す */
@@ -93,6 +110,31 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   }
   if (line) lines.push(line);
   return lines.length ? lines : [""];
+}
+
+/** 収まりきらない場合はフォントサイズを段階的に縮小し、それでも収まらなければ末尾を…で切る */
+function fitTextToWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxFontPx: number,
+  minFontPx: number,
+  weight = 900,
+): { text: string; fontSize: number } {
+  let fontSize = maxFontPx;
+  ctx.font = `${weight} ${fontSize}px ${FONT}`;
+  while (fontSize > minFontPx && ctx.measureText(text).width > maxWidth) {
+    fontSize -= 1;
+    ctx.font = `${weight} ${fontSize}px ${FONT}`;
+  }
+  let out = text;
+  if (ctx.measureText(out).width > maxWidth) {
+    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+      out = out.slice(0, -1);
+    }
+    out = out.length < text.length ? `${out}…` : out;
+  }
+  return { text: out, fontSize };
 }
 
 function drawArrowhead(
@@ -122,28 +164,23 @@ function drawOutlinedText(
   x: number,
   y: number,
   color: string,
+  outlineWidth = 5,
 ) {
-  ctx.lineWidth = 5;
+  ctx.lineWidth = outlineWidth;
+  ctx.lineJoin = "round";
   ctx.strokeStyle = "rgba(255,255,255,0.92)";
   ctx.strokeText(text, x, y);
   ctx.fillStyle = color;
   ctx.fillText(text, x, y);
 }
 
-/** pins/comment-pin-boardのPinObjectLineと同じ向きの矢印をCanvas上に再現する */
-function drawObjectPin(
-  ctx: CanvasRenderingContext2D,
-  pin: FeedbackSheetPin,
-  boxX: number,
-  boxY: number,
-  boxW: number,
-  boxH: number,
-) {
+/** pins/comment-pin-boardのPinObjectLineと同じ向きの矢印を、実際に描画された写真の矩形基準で再現する */
+function drawObjectPin(ctx: CanvasRenderingContext2D, pin: FeedbackSheetPin, photoRect: Rect) {
   if (!pin.object_kind || pin.end_position_x == null || pin.end_position_y == null) return;
-  const px1 = boxX + pin.position_x * boxW;
-  const py1 = boxY + pin.position_y * boxH;
-  const px2 = boxX + pin.end_position_x * boxW;
-  const py2 = boxY + pin.end_position_y * boxH;
+  const px1 = photoRect.x + pin.position_x * photoRect.w;
+  const py1 = photoRect.y + pin.position_y * photoRect.h;
+  const px2 = photoRect.x + pin.end_position_x * photoRect.w;
+  const py2 = photoRect.y + pin.end_position_y * photoRect.h;
   const angle = Math.atan2(py2 - py1, px2 - px1);
   const color = pin.color;
 
@@ -169,22 +206,59 @@ function drawObjectPin(
   ctx.font = `700 24px ${FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  drawOutlinedText(ctx, OBJECT_KIND_LABEL[pin.object_kind], (px1 + px2) / 2, (py1 + py2) / 2 - 20, color);
+  drawOutlinedText(ctx, OBJECT_KIND_LABEL[pin.object_kind], (px1 + px2) / 2, (py1 + py2) / 2 - 22, color);
 }
 
-function drawPinBadge(ctx: CanvasRenderingContext2D, x: number, y: number, num: number, color: string) {
+function drawPinBadge(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  num: number,
+  color: string,
+  radius = 21,
+) {
   ctx.beginPath();
-  ctx.arc(x, y, 21, 0, Math.PI * 2);
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
   ctx.lineWidth = 3;
   ctx.strokeStyle = PAPER;
   ctx.stroke();
   ctx.fillStyle = "#fff";
-  ctx.font = `700 20px ${FONT}`;
+  ctx.font = `700 ${Math.round(radius * 0.95)}px ${FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(num), x, y + 1);
+}
+
+/** アプリのPinChip(枠+流れるコメント)相当を、写真の実描画矩形基準で再現する。回転にも対応 */
+function drawTextPinFrame(
+  ctx: CanvasRenderingContext2D,
+  pin: FeedbackSheetPin,
+  num: number,
+  photoRect: Rect,
+) {
+  const cx = photoRect.x + pin.position_x * photoRect.w;
+  const cy = photoRect.y + pin.position_y * photoRect.h;
+  const w = Math.max(24, pin.width_pct * photoRect.w);
+  const h = Math.max(18, pin.height_pct * photoRect.h);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((pin.rotation_deg * Math.PI) / 180);
+  ctx.strokeStyle = pin.color;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+  const maxFont = Math.min(h * 0.62, 22);
+  const { text, fontSize } = fitTextToWidth(ctx, pin.body || " ", w - 10, maxFont, 9);
+  ctx.font = `900 ${fontSize}px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  drawOutlinedText(ctx, text, 0, 1, pin.color, 3);
+  ctx.restore();
+
+  drawPinBadge(ctx, cx - w / 2, cy - h / 2, num, pin.color, 15);
 }
 
 export async function generateFeedbackSheetBlob(
@@ -266,10 +340,15 @@ export async function generateFeedbackSheetBlob(
   y += 46;
 
   // --- 写真(お手本 / 現在の売場) ---
-  const photoBoxH = 700;
   const hasReference = !!(params.reference && referencePhoto);
   const colGap = 24;
   const colWidth = hasReference ? (CONTENT_WIDTH - colGap) / 2 : CONTENT_WIDTH;
+
+  // 投稿写真自身の縦横比を基準に高さを決める(トリミングしないのでピン座標が必ず一致する)。
+  // 極端な縦長/横長写真でもページが崩れないよう常識的な範囲にクランプする。
+  const currentAspect = photo.naturalWidth / photo.naturalHeight;
+  let photoBoxH = colWidth / currentAspect;
+  photoBoxH = Math.min(Math.max(photoBoxH, colWidth * 0.55), colWidth * 1.7);
 
   function drawPhotoLabel(text: string, x: number, color: string) {
     ctx!.font = `700 18px ${FONT}`;
@@ -291,7 +370,7 @@ export async function generateFeedbackSheetBlob(
     // お手本写真は少し彩度を落として「参考写真」であることを示す
     ctx.save();
     ctx.filter = "sepia(0.2) saturate(0.85) brightness(0.98)";
-    drawCover(ctx, referencePhoto, PAD_X, y, colWidth, photoBoxH);
+    drawImageFitted(ctx, referencePhoto, PAD_X, y, colWidth, photoBoxH);
     ctx.restore();
     ctx.strokeStyle = "#cdbf8f";
     ctx.lineWidth = 3;
@@ -299,16 +378,14 @@ export async function generateFeedbackSheetBlob(
   }
 
   const currentX = hasReference ? PAD_X + colWidth + colGap : PAD_X;
-  drawCover(ctx, photo, currentX, y, colWidth, photoBoxH);
+  const photoRect = drawImageFitted(ctx, photo, currentX, y, colWidth, photoBoxH);
 
   const textPins = params.pins.filter((p) => !p.object_kind);
   const objectPins = params.pins.filter(
     (p) => p.object_kind && p.end_position_x != null && p.end_position_y != null,
   );
-  objectPins.forEach((p) => drawObjectPin(ctx, p, currentX, y, colWidth, photoBoxH));
-  textPins.forEach((p, i) =>
-    drawPinBadge(ctx, currentX + p.position_x * colWidth, y + p.position_y * photoBoxH, i + 1, p.color),
-  );
+  objectPins.forEach((p) => drawObjectPin(ctx, p, photoRect));
+  textPins.forEach((p, i) => drawTextPinFrame(ctx, p, i + 1, photoRect));
 
   y += photoBoxH + 26;
   ctx.font = `400 16px ${FONT}`;
@@ -316,8 +393,8 @@ export async function generateFeedbackSheetBlob(
   ctx.textAlign = "left";
   ctx.fillText(
     hasReference
-      ? "左が本部お手本(参考)、右が今回の投稿写真。矢印は投稿写真側のオブジェクト指示、番号は下記コメント対応"
-      : "矢印はオブジェクト指示(移動/フェイス拡げる/縮める)、番号は下記コメント対応",
+      ? "左が本部お手本(参考)、右が今回の投稿写真。番号の枠は下記コメント全文と対応"
+      : "枠は文章コメント(番号は下記全文と対応)、矢印はオブジェクト指示(移動/フェイス拡げる/縮める)",
     PAD_X,
     y,
   );
