@@ -34,11 +34,6 @@ export default async function HomePage() {
     .select("*")
     .returns<CommentRow[]>();
 
-  const commentCounts: Record<string, number> = {};
-  for (const row of comments ?? []) {
-    commentCounts[row.session_id] = (commentCounts[row.session_id] ?? 0) + 1;
-  }
-
   const { data: profileRows } = await supabase
     .from("profiles")
     .select("id, display_name")
@@ -70,8 +65,7 @@ export default async function HomePage() {
       initialReactions={reactions ?? []}
       initialClapCounts={clapCounts}
       initialComments={comments ?? []}
-      commentCounts={commentCounts}
-      profileNames={profileNames}
+      initialProfileNames={profileNames}
       currentUserId={user?.id ?? null}
     />
   );

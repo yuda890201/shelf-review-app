@@ -13,6 +13,7 @@ import type {
   TagRow,
 } from "@/lib/types";
 import SessionCard from "./session-card";
+import PullToRefresh from "@/components/pull-to-refresh";
 
 type SortMode = "new" | "needs_work";
 
@@ -21,16 +22,14 @@ export default function Feed({
   initialReactions,
   initialClapCounts,
   initialComments,
-  commentCounts,
-  profileNames,
+  initialProfileNames,
   currentUserId,
 }: {
   initialSessions: SessionWithImage[];
   initialReactions: ReactionRow[];
   initialClapCounts: Record<string, number>;
   initialComments: CommentRow[];
-  commentCounts: Record<string, number>;
-  profileNames: Record<string, string>;
+  initialProfileNames: Record<string, string>;
   currentUserId: string | null;
 }) {
   const supabase = createClient();
@@ -41,6 +40,8 @@ export default function Feed({
   const [clapCounts, setClapCounts] =
     useState<Record<string, number>>(initialClapCounts);
   const [comments, setComments] = useState<CommentRow[]>(initialComments);
+  const [profileNames, setProfileNames] =
+    useState<Record<string, string>>(initialProfileNames);
   const [tags, setTags] = useState<Record<CommentType, TagRow[]>>({
     good: [],
     bad: [],
@@ -271,6 +272,53 @@ export default function Feed({
     }
   }
 
+  async function refreshFeed() {
+    const [
+      { data: newSessions },
+      { data: newReactions },
+      { data: clapRows },
+      { data: newComments },
+      { data: profileRows },
+    ] = await Promise.all([
+      supabase
+        .from("sessions")
+        .select(
+          "*, images!sessions_image_id_fkey(*), after_image:images!sessions_after_image_id_fkey(*)",
+        )
+        .order("created_at", { ascending: false })
+        .returns<SessionWithImage[]>(),
+      supabase.from("reactions").select("*").returns<ReactionRow[]>(),
+      supabase.from("claps").select("session_id"),
+      supabase.from("comments").select("*").returns<CommentRow[]>(),
+      supabase
+        .from("profiles")
+        .select("id, display_name")
+        .returns<{ id: string; display_name: string }[]>(),
+    ]);
+
+    if (newSessions) setSessions(newSessions);
+    if (newReactions) setReactions(newReactions);
+    if (clapRows) {
+      const counts: Record<string, number> = {};
+      for (const row of clapRows) {
+        counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
+      }
+      setClapCounts(counts);
+    }
+    if (newComments) setComments(newComments);
+    if (profileRows) {
+      const names: Record<string, string> = {};
+      for (const row of profileRows) names[row.id] = row.display_name;
+      setProfileNames(names);
+    }
+  }
+
+  const commentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of comments) counts[c.session_id] = (counts[c.session_id] ?? 0) + 1;
+    return counts;
+  }, [comments]);
+
   const stores = useMemo(
     () =>
       [...new Set(sessions.map((s) => s.images?.store_name).filter(Boolean))] as string[],
@@ -304,7 +352,7 @@ export default function Feed({
   }, [sessions, storeFilter, categoryFilter, sortMode, reactions]);
 
   return (
-    <div>
+    <PullToRefresh onRefresh={refreshFeed}>
       {sessions.length > 0 && (
         <div className="mx-auto mb-4 flex max-w-md flex-wrap gap-2">
           <select
@@ -397,6 +445,6 @@ export default function Feed({
           );
         })}
       </div>
-    </div>
+    </PullToRefresh>
   );
 }
