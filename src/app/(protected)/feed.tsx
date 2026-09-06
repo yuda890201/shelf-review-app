@@ -285,25 +285,6 @@ export default function Feed({
     if (layoutId) setCelebrating(true);
   }
 
-  async function handleShare(session: SessionWithImage) {
-    const url = `${window.location.origin}/?session=${session.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: session.title || "売場添削アプリ",
-          url,
-        });
-      } catch {
-        // ユーザーがキャンセルした場合などは何もしない
-      }
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(url);
-      alert("リンクをコピーしました");
-    } else {
-      alert(url);
-    }
-  }
-
   async function refreshFeed() {
     const [
       { data: newSessions },
@@ -482,7 +463,6 @@ export default function Feed({
                 onCommentAdded={addCommentIfNew}
                 onReact={handleReact}
                 onClap={handleClap}
-                onShare={handleShare}
                 onSessionUpdate={handleSessionUpdate}
                 layouts={layouts}
                 onSelectLayout={handleSelectLayout}

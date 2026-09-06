@@ -5,10 +5,12 @@ import { createClient } from "@/lib/supabase/client";
 import { shelfImagePublicUrl } from "@/lib/supabase/storage";
 import { compressImage } from "@/lib/image";
 import { submitComment } from "@/lib/submit-comment";
+import { generateFeedbackSheetBlob } from "@/lib/feedback-sheet";
 import type {
   CommentRow,
   CommentType,
   ImageRow,
+  LayoutReferencePhotoRow,
   LayoutRow,
   PinObjectKind,
   ReactionType,
@@ -18,6 +20,8 @@ import type {
 import LoadingOverlay from "@/components/loading-overlay";
 import { formatRelativeTime } from "@/lib/format-time";
 import CommentPinBoard from "./comment-pin-board";
+
+const SEASON_LABEL: Record<string, string> = { spring: "春夏", autumn: "秋冬" };
 
 const DOUBLE_TAP_DELAY_MS = 300;
 
@@ -38,7 +42,6 @@ export default function SessionCard({
   onCommentAdded,
   onReact,
   onClap,
-  onShare,
   onSessionUpdate,
   layouts,
   onSelectLayout,
@@ -60,7 +63,6 @@ export default function SessionCard({
   onCommentAdded: (row: CommentRow) => void;
   onReact: (sessionId: string, type: ReactionType) => void;
   onClap: (sessionId: string) => void;
-  onShare: (session: SessionWithImage) => void;
   onSessionUpdate: (session: SessionWithImage) => void;
   layouts: LayoutRow[];
   onSelectLayout: (sessionId: string, layoutId: string | null) => void;
@@ -68,6 +70,7 @@ export default function SessionCard({
   const supabase = createClient();
   const [closing, setClosing] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [generatingSheet, setGeneratingSheet] = useState(false);
   const resolveCameraRef = useRef<HTMLInputElement>(null);
   const resolveGalleryRef = useRef<HTMLInputElement>(null);
 
@@ -184,12 +187,91 @@ export default function SessionCard({
     if (data) onCommentAdded(data);
   }
 
+  async function fetchReference(layoutId: string) {
+    const [{ data: layout }, { data: photos }] = await Promise.all([
+      supabase.from("layouts").select("name").eq("id", layoutId).maybeSingle<{
+        name: string;
+      }>(),
+      supabase
+        .from("layout_reference_photos")
+        .select("*")
+        .eq("layout_id", layoutId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .returns<LayoutReferencePhotoRow[]>(),
+    ]);
+    const photo = photos?.[0];
+    if (!layout || !photo) return null;
+    return {
+      photoUrl: shelfImagePublicUrl(photo.storage_path),
+      layoutName: layout.name,
+      seasonLabel: SEASON_LABEL[photo.season] ?? photo.season,
+    };
+  }
+
+  async function handleGenerateFeedbackSheet() {
+    if (!session.images) return;
+    setGeneratingSheet(true);
+    try {
+      const reference = session.layout_id
+        ? await fetchReference(session.layout_id)
+        : null;
+
+      const blob = await generateFeedbackSheetBlob({
+        storeName: session.images.store_name,
+        truckName: session.images.shelf_category,
+        title: session.title,
+        posterName,
+        createdAt: session.created_at,
+        photoUrl: shelfImagePublicUrl(session.images.storage_path),
+        pins: sessionComments,
+        clapCount,
+        doneCount,
+        needsWorkCount,
+        reference,
+      });
+
+      const fileName = `フィードバックシート_${session.images.store_name ?? "売場"}_${session.id.slice(0, 8)}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: session.title || "フィードバックシート",
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // 共有シートをユーザーがキャンセルした場合は何もしない
+      } else {
+        alert(
+          `フィードバックシートの作成に失敗しました: ${
+            err instanceof Error ? err.message : "エラー"
+          }`,
+        );
+      }
+    }
+    setGeneratingSheet(false);
+  }
+
   return (
     <article
       id={`session-${session.id}`}
       className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
     >
       {resolving && <LoadingOverlay label="対応済み写真を登録中..." />}
+      {generatingSheet && (
+        <LoadingOverlay label="フィードバックシートを作成中..." />
+      )}
 
       <div className="flex items-center justify-between px-3 py-2">
         <div className="min-w-0">
@@ -345,9 +427,10 @@ export default function SessionCard({
           </span>
           <button
             type="button"
-            onClick={() => onShare(session)}
-            className="text-xl leading-none text-gray-400"
-            aria-label="共有"
+            onClick={handleGenerateFeedbackSheet}
+            disabled={generatingSheet}
+            className="text-xl leading-none text-gray-400 disabled:opacity-50"
+            aria-label="フィードバックシートを作成"
           >
             📤
           </button>
