@@ -307,8 +307,10 @@ export default function CommentPinBoard({
       pin: {
         x: pendingLine.x1,
         y: pendingLine.y1,
-        widthPct: 0,
-        heightPct: 0,
+        // object_kindが設定されたピンはPinObjectLineで描画されwidth_pct/height_pctは使わないが、
+        // commentsテーブルには0より大きい値を要求するCHECK制約があるためプレースホルダーを入れる。
+        widthPct: BASE_WIDTH_PCT,
+        heightPct: BASE_HEIGHT_PCT,
         rotationDeg: 0,
         endX: pendingLine.x2,
         endY: pendingLine.y2,
