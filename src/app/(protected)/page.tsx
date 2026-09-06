@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CommentRow, ReactionRow, SessionWithImage } from "@/lib/types";
+import type { CommentRow, LayoutRow, ReactionRow, SessionWithImage } from "@/lib/types";
 import Feed from "./feed";
 
 export default async function HomePage() {
@@ -44,6 +44,12 @@ export default async function HomePage() {
     profileNames[row.id] = row.display_name;
   }
 
+  const { data: layouts } = await supabase
+    .from("layouts")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .returns<LayoutRow[]>();
+
   if (user) {
     await supabase
       .from("profiles")
@@ -66,6 +72,7 @@ export default async function HomePage() {
       initialClapCounts={clapCounts}
       initialComments={comments ?? []}
       initialProfileNames={profileNames}
+      layouts={layouts ?? []}
       currentUserId={user?.id ?? null}
     />
   );

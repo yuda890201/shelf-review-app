@@ -7,6 +7,7 @@ import type {
   ClapRow,
   CommentRow,
   CommentType,
+  LayoutRow,
   ReactionRow,
   ReactionType,
   SessionWithImage,
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/types";
 import SessionCard from "./session-card";
 import PullToRefresh from "@/components/pull-to-refresh";
+import ThankYouCelebration from "@/components/thank-you-celebration";
 
 type SortMode = "new" | "needs_work";
 
@@ -23,6 +25,7 @@ export default function Feed({
   initialClapCounts,
   initialComments,
   initialProfileNames,
+  layouts,
   currentUserId,
 }: {
   initialSessions: SessionWithImage[];
@@ -30,6 +33,7 @@ export default function Feed({
   initialClapCounts: Record<string, number>;
   initialComments: CommentRow[];
   initialProfileNames: Record<string, string>;
+  layouts: LayoutRow[];
   currentUserId: string | null;
 }) {
   const supabase = createClient();
@@ -50,6 +54,7 @@ export default function Feed({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [poppingId, setPoppingId] = useState<string | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
 
   useEffect(() => {
     // ?session=<id> は共有リンクから開いたときにその投稿までスクロールするための
@@ -261,6 +266,25 @@ export default function Feed({
     setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
 
+  async function handleSelectLayout(sessionId: string, layoutId: string | null) {
+    if (!currentUserId) return;
+    const prevSessions = sessions;
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, layout_id: layoutId } : s)),
+    );
+    const { error } = await supabase.rpc("set_session_layout", {
+      p_session_id: sessionId,
+      p_layout_id: layoutId,
+    });
+    if (error) {
+      setSessions(prevSessions);
+      alert(`売場の設定に失敗しました: ${error.message}`);
+      return;
+    }
+    // 手間をかけて選んでもらったことへのお礼演出。未選択に戻す操作では出さない。
+    if (layoutId) setCelebrating(true);
+  }
+
   async function handleShare(session: SessionWithImage) {
     const url = `${window.location.origin}/?session=${session.id}`;
     if (navigator.share) {
@@ -360,106 +384,113 @@ export default function Feed({
   }, [sessions, storeFilter, categoryFilter, sortMode, reactions]);
 
   return (
-    <PullToRefresh onRefresh={refreshFeed}>
-      {sessions.length > 0 && (
-        <div className="mx-auto mb-4 flex max-w-md flex-wrap gap-2">
-          <select
-            value={storeFilter}
-            onChange={(e) => setStoreFilter(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
-          >
-            <option value="">すべての店舗</option>
-            {stores.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
-          >
-            <option value="">すべての売場</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="ml-auto rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
-          >
-            <option value="new">新着順</option>
-            <option value="needs_work">まだまだ率が高い順</option>
-          </select>
+    <>
+      {celebrating && (
+        <ThankYouCelebration onDone={() => setCelebrating(false)} />
+      )}
+      <PullToRefresh onRefresh={refreshFeed}>
+        {sessions.length > 0 && (
+          <div className="mx-auto mb-4 flex max-w-md flex-wrap gap-2">
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
+            >
+              <option value="">すべての店舗</option>
+              {stores.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
+            >
+              <option value="">すべての売場</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              className="ml-auto rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
+            >
+              <option value="new">新着順</option>
+              <option value="needs_work">まだまだ率が高い順</option>
+            </select>
+          </div>
+        )}
+
+        {sessions.length === 0 && (
+          <p className="text-sm text-gray-500">
+            まだ投稿がありません。売場写真をアップロードして最初の投稿を作りましょう。
+          </p>
+        )}
+        {sessions.length > 0 && visibleSessions.length === 0 && (
+          <p className="text-sm text-gray-500">条件に一致する投稿がありません。</p>
+        )}
+
+        <div className="mx-auto flex max-w-md flex-col gap-6">
+          {visibleSessions.map((session) => {
+            if (!session.images) return null;
+            const sessionComments = comments.filter(
+              (c) => c.session_id === session.id,
+            );
+            const sessionReactions = reactions.filter(
+              (r) => r.session_id === session.id,
+            );
+            const doneCount = sessionReactions.filter(
+              (r) => r.reaction_type === "done",
+            ).length;
+            const needsWorkCount = sessionReactions.filter(
+              (r) => r.reaction_type === "needs_work",
+            ).length;
+            const myName = currentUserId ? profileNames[currentUserId] : undefined;
+            const myReactionRow = sessionReactions.find((r) =>
+              myName ? profileNames[r.user_id] === myName : r.user_id === currentUserId,
+            );
+            const myReaction = myReactionRow?.reaction_type;
+            // 匿名ログインは再ログインのたびに別のuser_idになるため、表示名が同じ既存の
+            // 投票が別のuser_idに紐づいている場合は、多重投票を防ぐためボタンを無効化する。
+            const reactionLocked =
+              !!myReactionRow && myReactionRow.user_id !== currentUserId;
+
+            return (
+              <SessionCard
+                key={session.id}
+                session={session}
+                posterName={
+                  (session.facilitator_id && profileNames[session.facilitator_id]) ||
+                  null
+                }
+                sessionComments={sessionComments}
+                doneCount={doneCount}
+                needsWorkCount={needsWorkCount}
+                myReaction={myReaction}
+                reactionLocked={reactionLocked}
+                commentCount={commentCounts[session.id] ?? 0}
+                clapCount={clapCounts[session.id] ?? 0}
+                isPopping={poppingId === session.id}
+                currentUserId={currentUserId}
+                tags={tags}
+                onTagsChange={setTags}
+                onCommentAdded={addCommentIfNew}
+                onReact={handleReact}
+                onClap={handleClap}
+                onShare={handleShare}
+                onSessionUpdate={handleSessionUpdate}
+                layouts={layouts}
+                onSelectLayout={handleSelectLayout}
+              />
+            );
+          })}
         </div>
-      )}
-
-      {sessions.length === 0 && (
-        <p className="text-sm text-gray-500">
-          まだ投稿がありません。売場写真をアップロードして最初の投稿を作りましょう。
-        </p>
-      )}
-      {sessions.length > 0 && visibleSessions.length === 0 && (
-        <p className="text-sm text-gray-500">条件に一致する投稿がありません。</p>
-      )}
-
-      <div className="mx-auto flex max-w-md flex-col gap-6">
-        {visibleSessions.map((session) => {
-          if (!session.images) return null;
-          const sessionComments = comments.filter(
-            (c) => c.session_id === session.id,
-          );
-          const sessionReactions = reactions.filter(
-            (r) => r.session_id === session.id,
-          );
-          const doneCount = sessionReactions.filter(
-            (r) => r.reaction_type === "done",
-          ).length;
-          const needsWorkCount = sessionReactions.filter(
-            (r) => r.reaction_type === "needs_work",
-          ).length;
-          const myName = currentUserId ? profileNames[currentUserId] : undefined;
-          const myReactionRow = sessionReactions.find((r) =>
-            myName ? profileNames[r.user_id] === myName : r.user_id === currentUserId,
-          );
-          const myReaction = myReactionRow?.reaction_type;
-          // 匿名ログインは再ログインのたびに別のuser_idになるため、表示名が同じ既存の
-          // 投票が別のuser_idに紐づいている場合は、多重投票を防ぐためボタンを無効化する。
-          const reactionLocked =
-            !!myReactionRow && myReactionRow.user_id !== currentUserId;
-
-          return (
-            <SessionCard
-              key={session.id}
-              session={session}
-              posterName={
-                (session.facilitator_id && profileNames[session.facilitator_id]) ||
-                null
-              }
-              sessionComments={sessionComments}
-              doneCount={doneCount}
-              needsWorkCount={needsWorkCount}
-              myReaction={myReaction}
-              reactionLocked={reactionLocked}
-              commentCount={commentCounts[session.id] ?? 0}
-              clapCount={clapCounts[session.id] ?? 0}
-              isPopping={poppingId === session.id}
-              currentUserId={currentUserId}
-              tags={tags}
-              onTagsChange={setTags}
-              onCommentAdded={addCommentIfNew}
-              onReact={handleReact}
-              onClap={handleClap}
-              onShare={handleShare}
-              onSessionUpdate={handleSessionUpdate}
-            />
-          );
-        })}
-      </div>
-    </PullToRefresh>
+      </PullToRefresh>
+    </>
   );
 }

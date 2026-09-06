@@ -20,6 +20,7 @@ export type SessionRow = {
   closed_at: string | null;
   resolved_at: string | null;
   after_image_id: string | null;
+  layout_id: string | null;
 };
 
 export type CommentRow = {

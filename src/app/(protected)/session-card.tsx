@@ -9,6 +9,7 @@ import type {
   CommentRow,
   CommentType,
   ImageRow,
+  LayoutRow,
   PinObjectKind,
   ReactionType,
   SessionWithImage,
@@ -39,6 +40,8 @@ export default function SessionCard({
   onClap,
   onShare,
   onSessionUpdate,
+  layouts,
+  onSelectLayout,
 }: {
   session: SessionWithImage;
   posterName: string | null;
@@ -59,6 +62,8 @@ export default function SessionCard({
   onClap: (sessionId: string) => void;
   onShare: (session: SessionWithImage) => void;
   onSessionUpdate: (session: SessionWithImage) => void;
+  layouts: LayoutRow[];
+  onSelectLayout: (sessionId: string, layoutId: string | null) => void;
 }) {
   const supabase = createClient();
   const [closing, setClosing] = useState(false);
@@ -191,11 +196,31 @@ export default function SessionCard({
           <p className="truncate text-sm font-semibold text-gray-100">
             {session.title || "無題のセッション"}
           </p>
-          <p className="truncate text-xs text-gray-500">
-            {session.images.store_name}{" "}
-            {session.images.shelf_category &&
-              `/ ${session.images.shelf_category}`}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="truncate text-xs text-gray-500">
+              {session.images.store_name}{" "}
+              {session.images.shelf_category &&
+                `/ ${session.images.shelf_category}`}
+            </p>
+            <select
+              value={session.layout_id ?? ""}
+              onChange={(e) =>
+                onSelectLayout(session.id, e.target.value || null)
+              }
+              className={`max-w-[8.5rem] shrink-0 truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
+                session.layout_id
+                  ? "border-blue-800 bg-blue-950/50 text-blue-300"
+                  : "border-dashed border-neutral-600 text-gray-500"
+              }`}
+            >
+              <option value="">🏬 売場を選択</option>
+              {layouts.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="truncate text-[11px] text-gray-500">
             {posterName ?? "スタッフ"} · {formatRelativeTime(session.created_at)}
           </p>
