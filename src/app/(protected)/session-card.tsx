@@ -27,6 +27,7 @@ export default function SessionCard({
   doneCount,
   needsWorkCount,
   myReaction,
+  reactionLocked,
   commentCount,
   clapCount,
   isPopping,
@@ -45,6 +46,8 @@ export default function SessionCard({
   doneCount: number;
   needsWorkCount: number;
   myReaction: ReactionType | undefined;
+  /** 表示名が同じ既存の投票が別のuser_id(=別のログイン)に紐づいている場合true。多重投票防止のためボタンを無効化する。 */
+  reactionLocked: boolean;
   commentCount: number;
   clapCount: number;
   isPopping: boolean;
@@ -287,7 +290,8 @@ export default function SessionCard({
           <button
             type="button"
             onClick={() => onReact(session.id, "done")}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
+            disabled={reactionLocked}
+            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
               myReaction === "done"
                 ? "border-blue-500 bg-blue-950/60 text-blue-300"
                 : "border-neutral-700 text-gray-400"
@@ -298,7 +302,8 @@ export default function SessionCard({
           <button
             type="button"
             onClick={() => onReact(session.id, "needs_work")}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
+            disabled={reactionLocked}
+            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
               myReaction === "needs_work"
                 ? "border-orange-500 bg-orange-950/60 text-orange-300"
                 : "border-neutral-700 text-gray-400"

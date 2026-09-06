@@ -194,9 +194,17 @@ export default function Feed({
 
   async function handleReact(sessionId: string, type: ReactionType) {
     if (!currentUserId) return;
-    const existing = reactions.find(
-      (r) => r.session_id === sessionId && r.user_id === currentUserId,
+    const myName = profileNames[currentUserId];
+    const existing = reactions.find((r) =>
+      r.session_id === sessionId &&
+      (myName ? profileNames[r.user_id] === myName : r.user_id === currentUserId),
     );
+
+    // 匿名ログインは再ログインのたびに別のuser_idになるため、user_id単位では
+    // 同一人物による多重投票を防げない。表示名が同じ既存の投票があり、それが
+    // 自分(今のuser_id)のものでない場合は、他人のログインをまたいだ多重投票を
+    // 防ぐため何もしない(ボタン自体もUI側で無効化される)。
+    if (existing && existing.user_id !== currentUserId) return;
 
     if (existing && existing.reaction_type === type) {
       setReactions((prev) => prev.filter((r) => r.id !== existing.id));
@@ -414,9 +422,15 @@ export default function Feed({
           const needsWorkCount = sessionReactions.filter(
             (r) => r.reaction_type === "needs_work",
           ).length;
-          const myReaction = sessionReactions.find(
-            (r) => r.user_id === currentUserId,
-          )?.reaction_type;
+          const myName = currentUserId ? profileNames[currentUserId] : undefined;
+          const myReactionRow = sessionReactions.find((r) =>
+            myName ? profileNames[r.user_id] === myName : r.user_id === currentUserId,
+          );
+          const myReaction = myReactionRow?.reaction_type;
+          // 匿名ログインは再ログインのたびに別のuser_idになるため、表示名が同じ既存の
+          // 投票が別のuser_idに紐づいている場合は、多重投票を防ぐためボタンを無効化する。
+          const reactionLocked =
+            !!myReactionRow && myReactionRow.user_id !== currentUserId;
 
           return (
             <SessionCard
@@ -430,6 +444,7 @@ export default function Feed({
               doneCount={doneCount}
               needsWorkCount={needsWorkCount}
               myReaction={myReaction}
+              reactionLocked={reactionLocked}
               commentCount={commentCounts[session.id] ?? 0}
               clapCount={clapCounts[session.id] ?? 0}
               isPopping={poppingId === session.id}
