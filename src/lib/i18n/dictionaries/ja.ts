@@ -129,6 +129,14 @@ const ja = {
   },
 
   wizard: {
+    guidedProgress: (index: number, total: number) => `${index} / ${total}`,
+    guidedHeading: (gondola: string) => `${gondola} を撮影してください`,
+    guidedRemaining: "このあとのゴンドラ",
+    guidedNoReference: "お手本写真が未登録のゴンドラです",
+    skipThis: "このゴンドラは飛ばす",
+    chooseManually: "一覧から選んで撮る",
+    allDone: "この便のゴンドラをすべて撮り終えました",
+    shootMore: "他のゴンドラも撮る",
     selectStore: "店舗を選んでください",
     noStores:
       "店舗が登録されていません。マイページの「店舗・納品トラックの管理」から追加してください。",

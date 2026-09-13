@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { uploadShelfImage } from "@/lib/upload-image";
 import { useI18n } from "@/lib/i18n/provider";
+import { shelfImageThumbUrl } from "@/lib/supabase/storage";
 import type { DeliveryTruckRow, LayoutRow, StoreRow } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 
-type Step = "store" | "truck" | "truckOther" | "gondola" | "camera" | "uploading";
+type Step =
+  | "store"
+  | "truck"
+  | "truckOther"
+  | "gondola"
+  | "camera"
+  | "uploading"
+  | "done";
 
 const MAX_FILES = 5;
 
@@ -22,11 +30,16 @@ export default function NewSessionWizard({
   trucks,
   gondolas,
   gondolaIdsByTruck,
+  referenceByGondola,
 }: {
   stores: StoreRow[];
   trucks: DeliveryTruckRow[];
   gondolas: LayoutRow[];
   gondolaIdsByTruck: Record<string, string[]>;
+  referenceByGondola: Record<
+    string,
+    { storage_path: string; thumb_path: string | null }
+  >;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -44,6 +57,14 @@ export default function NewSessionWizard({
   /** ゴンドラごとの撮影済み枚数。1便で複数ゴンドラを回るときの進捗表示に使う。 */
   const [shotCounts, setShotCounts] = useState<Record<string, number>>({});
   const [createdIds, setCreatedIds] = useState<string[]>([]);
+  /**
+   * 便に紐づくゴンドラが登録済みなら、撮る順番をあらかじめ決めて1つずつ案内する。
+   * スタッフに毎回選ばせると「どれを撮ればいいのか」で迷うため、選択ではなく
+   * 撮影ガイドにしている。空のときは従来どおり一覧から選ぶ。
+   */
+  const [plan, setPlan] = useState<Gondola[]>([]);
+  const [planIndex, setPlanIndex] = useState(0);
+  const guided = plan.length > 0;
 
   const gondolaById = useMemo(
     () => new Map(gondolas.map((g) => [g.id, g])),
@@ -72,7 +93,21 @@ export default function NewSessionWizard({
   function selectTruck(row: DeliveryTruckRow) {
     setTruck(row.name);
     setTruckId(row.id);
-    setStep("gondola");
+    setErrorMessage("");
+
+    const planned = (gondolaIdsByTruck[row.id] ?? [])
+      .map((id) => gondolaById.get(id))
+      .filter((g): g is LayoutRow => !!g);
+
+    if (planned.length === 0) {
+      // 紐づけがまだ無い便は撮る順番を決めようがないので一覧から選んでもらう。
+      startManual();
+      return;
+    }
+    setPlan(planned);
+    setPlanIndex(0);
+    setGondola(planned[0]);
+    setStep("camera");
   }
 
   function confirmCustomTruck() {
@@ -80,6 +115,15 @@ export default function NewSessionWizard({
     if (!trimmed) return;
     setTruck(trimmed);
     setTruckId(null);
+    startManual();
+  }
+
+  /** 撮影ガイドをやめて一覧から選ぶ画面に切り替える。 */
+  function startManual() {
+    setPlan([]);
+    setPlanIndex(0);
+    setGondola(null);
+    setErrorMessage("");
     setStep("gondola");
   }
 
@@ -87,6 +131,18 @@ export default function NewSessionWizard({
     setGondola(next);
     setErrorMessage("");
     setStep("camera");
+  }
+
+  /** ガイド中に次のゴンドラへ進む。最後まで来たら完了画面へ。 */
+  function advancePlan() {
+    const next = planIndex + 1;
+    if (next < plan.length) {
+      setPlanIndex(next);
+      setGondola(plan[next]);
+      setStep("camera");
+    } else {
+      setStep("done");
+    }
   }
 
   function finish() {
@@ -201,6 +257,11 @@ export default function NewSessionWizard({
       [key]: (prev[key] ?? 0) + sessionIds.length,
     }));
     setCreatedIds((prev) => [...prev, ...sessionIds]);
+
+    if (guided) {
+      advancePlan();
+      return;
+    }
     // 1便で複数のゴンドラを回れるよう、撮り終えたらゴンドラ選択に戻る。
     setGondola(null);
     setStep("gondola");
@@ -409,12 +470,51 @@ export default function NewSessionWizard({
 
       {step === "camera" && (
         <div>
-          <h1 className="mb-1 text-lg font-bold text-gray-100">
-            {t.wizard.takePhoto}
-          </h1>
-          <p className="mb-6 text-xs text-gray-500">
-            {t.wizard.contextLabel(store, truck, gondola?.name ?? null)}
-          </p>
+          {guided && gondola ? (
+            <>
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <h1 className="min-w-0 truncate text-lg font-bold text-gray-100">
+                  {t.wizard.guidedHeading(gondola.name)}
+                </h1>
+                <span className="shrink-0 text-sm font-bold text-blue-400">
+                  {t.wizard.guidedProgress(planIndex + 1, plan.length)}
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-gray-500">
+                {t.wizard.contextLabel(store, truck, null)}
+              </p>
+
+              {/* 「どう並べるのが正解か」を撮る前に見せる。お手本が無いゴンドラでは
+                  その旨だけ出して撮影自体は進められるようにする。 */}
+              {referenceByGondola[gondola.id] ? (
+                <div className="mb-4">
+                  <p className="mb-1 text-xs font-medium text-gray-400">
+                    {t.layoutDetail.referenceShort}
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={shelfImageThumbUrl(referenceByGondola[gondola.id])}
+                    alt={t.layoutDetail.referenceAlt}
+                    decoding="async"
+                    className="w-full rounded-lg border border-neutral-700"
+                  />
+                </div>
+              ) : (
+                <p className="mb-4 text-xs text-amber-400">
+                  {t.wizard.guidedNoReference}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <h1 className="mb-1 text-lg font-bold text-gray-100">
+                {t.wizard.takePhoto}
+              </h1>
+              <p className="mb-6 text-xs text-gray-500">
+                {t.wizard.contextLabel(store, truck, gondola?.name ?? null)}
+              </p>
+            </>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -448,12 +548,75 @@ export default function NewSessionWizard({
           {errorMessage && (
             <p className="mt-3 text-sm text-red-400">{errorMessage}</p>
           )}
+
+          {guided ? (
+            <>
+              {planIndex + 1 < plan.length && (
+                <div className="mt-5 border-t border-neutral-800 pt-3">
+                  <p className="mb-1 text-[11px] font-bold text-gray-500">
+                    {t.wizard.guidedRemaining}
+                  </p>
+                  <ol className="flex flex-col gap-0.5">
+                    {plan.slice(planIndex + 1).map((item, i) => (
+                      <li key={item.id} className="truncate text-xs text-gray-500">
+                        {planIndex + 2 + i}. {item.name}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap gap-4">
+                <button
+                  type="button"
+                  onClick={advancePlan}
+                  className="text-xs text-gray-500 underline"
+                >
+                  {t.wizard.skipThis}
+                </button>
+                <button
+                  type="button"
+                  onClick={startManual}
+                  className="text-xs text-gray-500 underline"
+                >
+                  {t.wizard.chooseManually}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStep("gondola")}
+              className="mt-4 text-xs text-gray-500 underline"
+            >
+              {t.wizard.backToGondola}
+            </button>
+          )}
+        </div>
+      )}
+
+      {step === "done" && (
+        <div>
+          <h1 className="mb-1 text-lg font-bold text-gray-100">
+            {t.wizard.allDone}
+          </h1>
+          <p className="mb-6 text-xs text-gray-500">
+            {t.wizard.contextLabel(store, truck, null)}
+            <br />
+            {t.wizard.finishHint(createdIds.length)}
+          </p>
           <button
             type="button"
-            onClick={() => setStep("gondola")}
+            onClick={finish}
+            className="w-full rounded-lg bg-blue-600 px-4 py-4 text-base font-bold text-white active:bg-blue-700"
+          >
+            {t.wizard.finish}
+          </button>
+          <button
+            type="button"
+            onClick={startManual}
             className="mt-4 text-xs text-gray-500 underline"
           >
-            {t.wizard.backToGondola}
+            {t.wizard.shootMore}
           </button>
         </div>
       )}

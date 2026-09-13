@@ -128,6 +128,14 @@ const en: Dictionary = {
   },
 
   wizard: {
+    guidedProgress: (index, total) => `${index} / ${total}`,
+    guidedHeading: (gondola) => `Photograph ${gondola}`,
+    guidedRemaining: "Coming up",
+    guidedNoReference: "No HQ reference photo for this gondola yet",
+    skipThis: "Skip this gondola",
+    chooseManually: "Pick from the list instead",
+    allDone: "That's every gondola on this truck",
+    shootMore: "Photograph another gondola",
     selectStore: "Choose a store",
     noStores:
       "No stores registered yet. Add one from “Stores & delivery trucks” in your profile.",

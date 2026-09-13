@@ -128,6 +128,14 @@ const ne: Dictionary = {
   },
 
   wizard: {
+    guidedProgress: (index, total) => `${index} / ${total}`,
+    guidedHeading: (gondola) => `${gondola} को फोटो खिच्नुहोस्`,
+    guidedRemaining: "अब आउने गन्डोला",
+    guidedNoReference: "यो गन्डोलाको नमुना फोटो अझै छैन",
+    skipThis: "यो गन्डोला छोड्ने",
+    chooseManually: "सूचीबाट छानेर खिच्ने",
+    allDone: "यो ट्रकका सबै गन्डोला खिचियो",
+    shootMore: "अर्को गन्डोला खिच्ने",
     selectStore: "पसल छान्नुहोस्",
     noStores:
       "कुनै पसल दर्ता छैन। प्रोफाइलको “पसल र डेलिभरी ट्रक व्यवस्थापन” बाट थप्नुहोस्।",
