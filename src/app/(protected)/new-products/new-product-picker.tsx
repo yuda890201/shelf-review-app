@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
+import { shelfImageThumbUrl } from "@/lib/supabase/storage";
+import { useI18n } from "@/lib/i18n/provider";
 import LoadingOverlay from "@/components/loading-overlay";
+import { LOCALE_TAGS } from "@/lib/i18n/locales";
 import type { LayoutCurrentPhotoRow, LayoutRow, StoreRow } from "@/lib/types";
 
 export default function NewProductPicker({
@@ -16,6 +18,7 @@ export default function NewProductPicker({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const { t, locale } = useI18n();
 
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>(
     layouts[0]?.id ?? "",
@@ -58,7 +61,9 @@ export default function NewProductPicker({
   return (
     <div>
       <section className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
-        <h2 className="mb-2 text-sm font-bold text-gray-300">売場を選択</h2>
+        <h2 className="mb-2 text-sm font-bold text-gray-300">
+          {t.newProducts.selectLayout}
+        </h2>
         <select
           value={selectedLayoutId}
           onChange={(e) => setSelectedLayoutId(e.target.value)}
@@ -73,7 +78,9 @@ export default function NewProductPicker({
       </section>
 
       <section className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
-        <h2 className="mb-2 text-sm font-bold text-gray-300">店舗を選択</h2>
+        <h2 className="mb-2 text-sm font-bold text-gray-300">
+          {t.newProducts.selectStore}
+        </h2>
         <div className="flex flex-wrap gap-2">
           {stores.map(({ id, name }) => (
             <button
@@ -93,19 +100,23 @@ export default function NewProductPicker({
       </section>
 
       <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-3">
-        <h2 className="mb-2 text-sm font-bold text-gray-300">売場写真を選択</h2>
+        <h2 className="mb-2 text-sm font-bold text-gray-300">
+          {t.newProducts.selectPhoto}
+        </h2>
 
-        {loadingPhotos && <LoadingOverlay variant="inline" label="読み込み中..." />}
+        {loadingPhotos && (
+          <LoadingOverlay variant="inline" label={t.common.loading} />
+        )}
 
         {!loadingPhotos && photos.length === 0 && (
-          <p className="text-xs text-gray-500">
-            この売場・店舗の現在の売場写真がまだありません。先に「本部レイアウト比較」からアップロードしてください。
-          </p>
+          <p className="text-xs text-gray-500">{t.newProducts.noPhotos}</p>
         )}
 
         {!loadingPhotos && latest && (
           <div className="mb-3">
-            <p className="mb-1 text-xs font-medium text-blue-400">現在の売場</p>
+            <p className="mb-1 text-xs font-medium text-blue-400">
+              {t.newProducts.current}
+            </p>
             <button
               type="button"
               onClick={() => router.push(`/new-products/${latest.id}`)}
@@ -113,8 +124,10 @@ export default function NewProductPicker({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={shelfImagePublicUrl(latest.storage_path)}
-                alt="現在の売場写真"
+                src={shelfImageThumbUrl(latest)}
+                alt={t.newProducts.currentAlt}
+                loading="lazy"
+                decoding="async"
                 className="aspect-square w-full rounded-md border border-blue-800 object-cover"
               />
             </button>
@@ -124,7 +137,7 @@ export default function NewProductPicker({
         {!loadingPhotos && archived.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-medium text-gray-500">
-              過去のアーカイブ
+              {t.newProducts.archive}
             </p>
             <div className="grid grid-cols-3 gap-2">
               {archived.map((photo) => (
@@ -135,12 +148,16 @@ export default function NewProductPicker({
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={shelfImagePublicUrl(photo.storage_path)}
-                    alt="アーカイブ売場写真"
+                    src={shelfImageThumbUrl(photo)}
+                    alt={t.newProducts.archiveAlt}
+                    loading="lazy"
+                    decoding="async"
                     className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
                   />
                   <p className="mt-0.5 text-[10px] text-gray-500">
-                    {new Date(photo.created_at).toLocaleDateString("ja-JP")}
+                    {new Date(photo.created_at).toLocaleDateString(
+                      LOCALE_TAGS[locale],
+                    )}
                   </p>
                 </button>
               ))}

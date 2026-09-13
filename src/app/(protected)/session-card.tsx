@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
-import { compressImage } from "@/lib/image";
+import {
+  shelfImagePublicUrl,
+  shelfImageThumbUrl,
+} from "@/lib/supabase/storage";
+import { uploadShelfImage } from "@/lib/upload-image";
 import { submitComment } from "@/lib/submit-comment";
-import { generateFeedbackSheetBlob } from "@/lib/feedback-sheet";
+import { useI18n } from "@/lib/i18n/provider";
 import type {
   CommentRow,
   CommentType,
@@ -21,11 +24,9 @@ import LoadingOverlay from "@/components/loading-overlay";
 import { formatRelativeTime } from "@/lib/format-time";
 import CommentPinBoard from "./comment-pin-board";
 
-const SEASON_LABEL: Record<string, string> = { spring: "春夏", autumn: "秋冬" };
-
 const DOUBLE_TAP_DELAY_MS = 300;
 
-export default function SessionCard({
+function SessionCard({
   session,
   posterName,
   sessionComments,
@@ -33,7 +34,6 @@ export default function SessionCard({
   needsWorkCount,
   myReaction,
   reactionLocked,
-  commentCount,
   clapCount,
   isPopping,
   currentUserId,
@@ -54,7 +54,6 @@ export default function SessionCard({
   myReaction: ReactionType | undefined;
   /** 表示名が同じ既存の投票が別のuser_id(=別のログイン)に紐づいている場合true。多重投票防止のためボタンを無効化する。 */
   reactionLocked: boolean;
-  commentCount: number;
   clapCount: number;
   isPopping: boolean;
   currentUserId: string | null;
@@ -68,6 +67,7 @@ export default function SessionCard({
   onSelectLayout: (sessionId: string, layoutId: string | null) => void;
 }) {
   const supabase = createClient();
+  const { t, locale } = useI18n();
   const [closing, setClosing] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [generatingSheet, setGeneratingSheet] = useState(false);
@@ -83,14 +83,14 @@ export default function SessionCard({
   const needsWorkRate = total ? 100 - doneRate : 0;
 
   async function handleClose() {
-    if (!confirm("このセッションをクローズしますか?")) return;
+    if (!confirm(t.card.confirmClose)) return;
     setClosing(true);
     const { error } = await supabase
       .from("sessions")
       .update({ status: "closed", closed_at: new Date().toISOString() })
       .eq("id", session.id);
     if (error) {
-      alert(`クローズに失敗しました: ${error.message}`);
+      alert(t.card.closeFailed(error.message));
     } else {
       onSessionUpdate({
         ...session,
@@ -108,19 +108,12 @@ export default function SessionCard({
 
     setResolving(true);
     try {
-      const compressed = await compressImage(file);
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const storagePath = `${currentUserId}/${crypto.randomUUID()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("shelf-images")
-        .upload(storagePath, compressed);
-      if (uploadError) throw uploadError;
+      const paths = await uploadShelfImage(supabase, currentUserId, file);
 
       const { data: image, error: imageError } = await supabase
         .from("images")
         .insert({
-          storage_path: storagePath,
+          ...paths,
           uploaded_by: currentUserId,
           store_name: session.images?.store_name ?? null,
           shelf_category: session.images?.shelf_category ?? null,
@@ -144,9 +137,7 @@ export default function SessionCard({
       });
     } catch (err) {
       alert(
-        `対応済み写真の登録に失敗しました: ${
-          err instanceof Error ? err.message : "エラー"
-        }`,
+        t.card.resolveFailed(err instanceof Error ? err.message : t.common.error),
       );
     }
     setResolving(false);
@@ -171,7 +162,7 @@ export default function SessionCard({
       endY: number | null;
     };
   }) {
-    if (!currentUserId) return { error: "ログインが必要です。" };
+    if (!currentUserId) return { error: t.common.loginRequired };
     const { data, error } = await submitComment({
       supabase,
       sessionId: session.id,
@@ -205,7 +196,10 @@ export default function SessionCard({
     return {
       photoUrl: shelfImagePublicUrl(photo.storage_path),
       layoutName: layout.name,
-      seasonLabel: SEASON_LABEL[photo.season] ?? photo.season,
+      seasonLabel:
+        photo.season === "spring"
+          ? t.layoutDetail.seasonSpring
+          : t.layoutDetail.seasonAutumn,
     };
   }
 
@@ -216,6 +210,10 @@ export default function SessionCard({
       const reference = session.layout_id
         ? await fetchReference(session.layout_id)
         : null;
+
+      // キャンバスでA4画像を組み立てるコードは重く、共有するときしか使わない。
+      // 初回のバンドルに含めず、押されたタイミングで読み込む。
+      const { generateFeedbackSheetBlob } = await import("@/lib/feedback-sheet");
 
       const blob = await generateFeedbackSheetBlob({
         storeName: session.images.store_name,
@@ -229,15 +227,19 @@ export default function SessionCard({
         doneCount,
         needsWorkCount,
         reference,
+        t,
+        locale,
       });
 
-      const fileName = `フィードバックシート_${session.images.store_name ?? "売場"}_${session.id.slice(0, 8)}.png`;
+      const fileName = `${t.card.sheetFileName}_${
+        session.images.store_name ?? ""
+      }_${session.id.slice(0, 8)}.png`;
       const file = new File([blob], fileName, { type: "image/png" });
 
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: session.title || "フィードバックシート",
+          title: session.title || t.card.sheetFileName,
         });
       } else {
         const url = URL.createObjectURL(blob);
@@ -254,9 +256,7 @@ export default function SessionCard({
         // 共有シートをユーザーがキャンセルした場合は何もしない
       } else {
         alert(
-          `フィードバックシートの作成に失敗しました: ${
-            err instanceof Error ? err.message : "エラー"
-          }`,
+          t.card.sheetFailed(err instanceof Error ? err.message : t.common.error),
         );
       }
     }
@@ -266,17 +266,17 @@ export default function SessionCard({
   return (
     <article
       id={`session-${session.id}`}
-      className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+      // card-defer: 画面外のカードは描画を後回しにして、低スペック端末での
+      // スクロールを軽くする(globals.css の content-visibility)。
+      className="card-defer overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
     >
-      {resolving && <LoadingOverlay label="対応済み写真を登録中..." />}
-      {generatingSheet && (
-        <LoadingOverlay label="フィードバックシートを作成中..." />
-      )}
+      {resolving && <LoadingOverlay label={t.card.resolvingPhoto} />}
+      {generatingSheet && <LoadingOverlay label={t.card.sheetGenerating} />}
 
       <div className="flex items-center justify-between px-3 py-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-gray-100">
-            {session.title || "無題のセッション"}
+            {session.title || t.card.untitled}
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="truncate text-xs text-gray-500">
@@ -295,7 +295,7 @@ export default function SessionCard({
                   : "border-dashed border-neutral-600 text-gray-500"
               }`}
             >
-              <option value="">🏬 売場を選択</option>
+              <option value="">{t.card.selectGondola}</option>
               {layouts.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -304,13 +304,14 @@ export default function SessionCard({
             </select>
           </div>
           <p className="truncate text-[11px] text-gray-500">
-            {posterName ?? "スタッフ"} · {formatRelativeTime(session.created_at)}
+            {posterName ?? t.card.staff} ·{" "}
+            {formatRelativeTime(session.created_at, t, locale)}
           </p>
         </div>
         <div className="flex shrink-0 gap-1">
           {session.resolved_at && (
             <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
-              ✅ 対応済み
+              {t.card.resolved}
             </span>
           )}
           <span
@@ -320,7 +321,7 @@ export default function SessionCard({
                 : "bg-neutral-700 text-gray-300"
             }`}
           >
-            {isOpen ? "進行中" : "クローズ済"}
+            {isOpen ? t.card.statusOpen : t.card.statusClosed}
           </span>
         </div>
       </div>
@@ -329,23 +330,27 @@ export default function SessionCard({
         <div className="grid grid-cols-2 gap-2 px-3 pb-2">
           <div>
             <p className="mb-1 text-center text-xs font-medium text-gray-500">
-              改善前
+              {t.card.before}
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={shelfImagePublicUrl(session.images.storage_path)}
-              alt="改善前"
+              src={shelfImageThumbUrl(session.images)}
+              alt={t.card.before}
+              loading="lazy"
+              decoding="async"
               className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
             />
           </div>
           <div>
             <p className="mb-1 text-center text-xs font-medium text-blue-400">
-              改善後
+              {t.card.after}
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={shelfImagePublicUrl(session.after_image.storage_path)}
-              alt="改善後"
+              src={shelfImageThumbUrl(session.after_image)}
+              alt={t.card.after}
+              loading="lazy"
+              decoding="async"
               className="aspect-square w-full rounded-md border border-blue-800 object-cover"
             />
           </div>
@@ -353,7 +358,7 @@ export default function SessionCard({
       )}
 
       <CommentPinBoard
-        photoUrl={shelfImagePublicUrl(session.images.storage_path)}
+        photoUrl={shelfImageThumbUrl(session.images)}
         pins={sessionComments}
         currentUserId={currentUserId}
         canComment={isOpen}
@@ -362,11 +367,7 @@ export default function SessionCard({
         onSubmit={handleSubmitComment}
         tapDelayMs={DOUBLE_TAP_DELAY_MS}
         onDoubleTap={() => onClap(session.id)}
-        hint={
-          isOpen
-            ? "タップしてコメントを貼り付け(ダブルタップで🙏)"
-            : undefined
-        }
+        hint={isOpen ? t.pin.hintFeed : undefined}
         overlay={
           <>
             {myReaction && (
@@ -390,7 +391,7 @@ export default function SessionCard({
           onClick={() => onClap(session.id)}
           className="mb-2 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-gray-200 active:bg-neutral-700"
         >
-          🙏 ありがとう {clapCount}
+          {t.card.thanks(clapCount)}
         </button>
 
         <div className="mb-2 flex gap-2">
@@ -404,7 +405,7 @@ export default function SessionCard({
                 : "border-neutral-700 text-gray-400"
             }`}
           >
-            ✅ 完成 {doneCount}
+            {t.card.done(doneCount)}
           </button>
           <button
             type="button"
@@ -416,21 +417,21 @@ export default function SessionCard({
                 : "border-neutral-700 text-gray-400"
             }`}
           >
-            🔧 まだまだ {needsWorkCount}
+            {t.card.needsWork(needsWorkCount)}
           </button>
         </div>
 
         <div className="mb-2 flex items-center gap-4">
           <span className="flex items-center gap-1 text-gray-400">
             <span className="text-xl leading-none">💬</span>
-            <span className="text-xs">{commentCount}</span>
+            <span className="text-xs">{sessionComments.length}</span>
           </span>
           <button
             type="button"
             onClick={handleGenerateFeedbackSheet}
             disabled={generatingSheet}
             className="text-xl leading-none text-gray-400 disabled:opacity-50"
-            aria-label="フィードバックシートを作成"
+            aria-label={t.card.sheetLabel}
           >
             📤
           </button>
@@ -446,8 +447,8 @@ export default function SessionCard({
               />
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-              <span>完成率 {doneRate}%</span>
-              <span>まだまだ率 {needsWorkRate}%</span>
+              <span>{t.card.doneRate(doneRate)}</span>
+              <span>{t.card.needsWorkRate(needsWorkRate)}</span>
             </div>
           </div>
         )}
@@ -461,7 +462,7 @@ export default function SessionCard({
                 disabled={closing}
                 className="rounded-md border border-red-800 px-2 py-1 text-xs font-semibold text-red-400 disabled:opacity-50"
               >
-                {closing ? "クローズ中..." : "セッションをクローズ"}
+                {closing ? t.card.closing : t.card.closeSession}
               </button>
             )}
             {!session.resolved_at && (
@@ -487,7 +488,7 @@ export default function SessionCard({
                   disabled={resolving}
                   className="rounded-md border border-blue-800 px-2 py-1 text-xs font-semibold text-blue-400 disabled:opacity-50"
                 >
-                  {resolving ? "登録中..." : "✅ 対応済みにする"}
+                  {resolving ? t.card.registering : t.card.markResolved}
                 </button>
               </>
             )}
@@ -497,3 +498,7 @@ export default function SessionCard({
     </article>
   );
 }
+
+// フィードは投稿カードを縦に並べるだけなので、1枚のカードで起きた状態変化で
+// 他のカードまで描き直さないようにメモ化する。低スペック端末では効果が大きい。
+export default memo(SessionCard);

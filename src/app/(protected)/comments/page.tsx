@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAGS } from "@/lib/i18n/locales";
 import type { CommentType } from "@/lib/types";
 
 type CommentSearchRow = {
@@ -12,18 +14,21 @@ type CommentSearchRow = {
   sessions: { title: string | null } | null;
 };
 
-const TYPE_LABEL: Record<CommentType, string> = {
-  good: "良い点",
-  bad: "気になる点",
-};
-
 export default async function CommentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; type?: string }>;
 }) {
   const { q = "", type = "all" } = await searchParams;
-  const supabase = await createClient();
+  const [supabase, t, locale] = await Promise.all([
+    createClient(),
+    getDictionary(),
+    getLocale(),
+  ]);
+  const typeLabel: Record<CommentType, string> = {
+    good: t.pin.typeGood,
+    bad: t.pin.typeBad,
+  };
 
   let query = supabase
     .from("comments")
@@ -42,14 +47,16 @@ export default async function CommentsPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-bold text-gray-100">コメント一覧</h1>
+      <h1 className="mb-4 text-lg font-bold text-gray-100">
+        {t.comments.title}
+      </h1>
 
       <form className="mb-4 flex flex-wrap gap-2" method="get">
         <input
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="コメント本文を検索..."
+          placeholder={t.comments.searchPlaceholder}
           className="min-w-[200px] flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
         />
         <select
@@ -57,24 +64,26 @@ export default async function CommentsPage({
           defaultValue={type}
           className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-100"
         >
-          <option value="all">すべて</option>
-          <option value="good">良い点</option>
-          <option value="bad">気になる点</option>
+          <option value="all">{t.comments.typeAll}</option>
+          <option value="good">{t.pin.typeGood}</option>
+          <option value="bad">{t.pin.typeBad}</option>
         </select>
         <button
           type="submit"
           className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
         >
-          検索
+          {t.common.search}
         </button>
       </form>
 
       {error && (
-        <p className="text-sm text-red-400">読み込みに失敗しました: {error.message}</p>
+        <p className="text-sm text-red-400">
+          {t.common.loadFailed(error.message)}
+        </p>
       )}
 
       {comments && comments.length === 0 && (
-        <p className="text-sm text-gray-500">該当するコメントがありません。</p>
+        <p className="text-sm text-gray-500">{t.comments.empty}</p>
       )}
 
       <ul className="flex flex-col gap-2">
@@ -92,10 +101,10 @@ export default async function CommentsPage({
                       : "bg-red-900/50 text-red-300"
                   }`}
                 >
-                  {TYPE_LABEL[c.comment_type]}
+                  {typeLabel[c.comment_type]}
                 </span>
                 <span className="text-gray-400">
-                  {c.sessions?.title || "無題のセッション"}
+                  {c.sessions?.title || t.card.untitled}
                 </span>
                 {c.images?.store_name && (
                   <span className="text-gray-500">/ {c.images.store_name}</span>
@@ -104,7 +113,7 @@ export default async function CommentsPage({
                   <span className="text-gray-500">/ {c.images.shelf_category}</span>
                 )}
                 <span className="ml-auto text-gray-500">
-                  {new Date(c.created_at).toLocaleString("ja-JP")}
+                  {new Date(c.created_at).toLocaleString(LOCALE_TAGS[locale])}
                 </span>
               </div>
               <p className="text-sm text-gray-200">{c.body}</p>

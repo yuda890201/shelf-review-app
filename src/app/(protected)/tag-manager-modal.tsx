@@ -5,11 +5,7 @@ import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { CommentType, TagRow } from "@/lib/types";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
-
-const TYPE_LABEL: Record<CommentType, string> = {
-  good: "良い点",
-  bad: "気になる点",
-};
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function TagManagerModal({
   commentType,
@@ -23,6 +19,7 @@ export default function TagManagerModal({
   onChange: (tags: TagRow[]) => void;
 }) {
   const supabase = createClient();
+  const { t } = useI18n();
   const [newBody, setNewBody] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
@@ -49,9 +46,9 @@ export default function TagManagerModal({
       onChange([...tags, data]);
       setNewBody("");
     } else if (error?.code === "23505") {
-      alert("同じタグが既に存在します。");
+      alert(t.common.duplicateName);
     } else if (error) {
-      alert(`追加に失敗しました: ${error.message}`);
+      alert(t.common.addFailed(error.message));
     }
     setBusy(false);
   }
@@ -68,19 +65,19 @@ export default function TagManagerModal({
       onChange(tags.map((t) => (t.id === id ? { ...t, body: trimmed } : t)));
       setEditingId(null);
     } else {
-      alert(`更新に失敗しました: ${error.message}`);
+      alert(t.common.updateFailed(error.message));
     }
     setBusy(false);
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("このタグを削除しますか?")) return;
+    if (!confirm(t.common.confirmDelete)) return;
     setBusy(true);
     const { error } = await supabase.from("tags").delete().eq("id", id);
     if (!error) {
       onChange(tags.filter((t) => t.id !== id));
     } else {
-      alert(`削除に失敗しました: ${error.message}`);
+      alert(t.common.deleteFailed(error.message));
     }
     setBusy(false);
   }
@@ -102,14 +99,16 @@ export default function TagManagerModal({
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-bold text-gray-100">
-            {TYPE_LABEL[commentType]}のタグを編集
+            {t.tags.title(
+              commentType === "good" ? t.pin.typeGood : t.pin.typeBad,
+            )}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-xs text-gray-400"
           >
-            ✕ 閉じる
+            {`✕ ${t.tags.close}`}
           </button>
         </div>
 
@@ -118,7 +117,7 @@ export default function TagManagerModal({
             type="text"
             value={newBody}
             onChange={(e) => setNewBody(e.target.value)}
-            placeholder="新しいタグを入力..."
+            placeholder={t.tags.placeholder}
             className="min-w-0 flex-1 rounded-md border border-neutral-600 bg-neutral-800 px-3 py-2 text-base text-gray-100 placeholder-gray-500"
           />
           <button
@@ -127,13 +126,13 @@ export default function TagManagerModal({
             disabled={busy || !newBody.trim()}
             className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            追加
+            {t.common.add}
           </button>
         </div>
 
         <ul ref={scrollRef} className="flex flex-col gap-2 overflow-y-auto">
           {sorted.length === 0 && (
-            <p className="text-xs text-gray-500">まだタグがありません。</p>
+            <p className="text-xs text-gray-500">{t.tags.empty}</p>
           )}
           {sorted.map((tag) => (
             <li
@@ -155,14 +154,14 @@ export default function TagManagerModal({
                     disabled={busy}
                     className="shrink-0 text-xs font-semibold text-blue-400 disabled:opacity-50"
                   >
-                    保存
+                    {t.common.save}
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditingId(null)}
                     className="shrink-0 text-xs text-gray-500"
                   >
-                    取消
+                    {t.common.cancel}
                   </button>
                 </>
               ) : (
@@ -177,7 +176,7 @@ export default function TagManagerModal({
                       setEditingBody(tag.body);
                     }}
                     className="shrink-0 text-xs text-gray-400"
-                    aria-label="編集"
+                    aria-label={t.common.edit}
                   >
                     ✎
                   </button>
@@ -186,7 +185,7 @@ export default function TagManagerModal({
                     onClick={() => handleDelete(tag.id)}
                     disabled={busy}
                     className="shrink-0 text-xs text-red-400 disabled:opacity-50"
-                    aria-label="削除"
+                    aria-label={t.common.delete}
                   >
                     🗑
                   </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n/provider";
 
 const COLORS = [
   "#f43f5e",
@@ -27,6 +28,8 @@ function randomColor() {
 
 /** 売場選択のような地味な手間をかけてくれた人へのお礼演出。画面いっぱいに紙吹雪・花火・流れる「ありがとう」を数秒表示して自動で消える。 */
 export default function ThankYouCelebration({ onDone }: { onDone: () => void }) {
+  const { t } = useI18n();
+
   useEffect(() => {
     const timer = setTimeout(onDone, DURATION_MS);
     return () => clearTimeout(timer);
@@ -107,7 +110,7 @@ export default function ThankYouCelebration({ onDone }: { onDone: () => void }) 
         <span className="marquee-track" style={{ animationDuration: "3.2s" }}>
           {[0, 1].map((copy) => (
             <span key={copy} aria-hidden={copy === 1} className="thank-you-text">
-              ご協力ありがとうございます 🎉 ・ ご協力ありがとうございます 🎉 ・&nbsp;
+              {`${t.celebration.message} 🎉 ・ ${t.celebration.message} 🎉 ・\u00a0`}
             </span>
           ))}
         </span>

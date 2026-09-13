@@ -1,5 +1,7 @@
+"use client";
+
 import { BASE_HEIGHT_PCT, BASE_WIDTH_PCT } from "@/lib/comment-pin";
-import { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import { useI18n } from "@/lib/i18n/provider";
 import type { PinObjectKind } from "@/lib/types";
 
 const ARROW_SIZE = 11;
@@ -42,6 +44,8 @@ export default function PinObjectLine({
   dashed?: boolean;
   showLabel?: boolean;
 }) {
+  const { t } = useI18n();
+
   if (containerWidth <= 0 || containerHeight <= 0) return null;
 
   const px1 = x1 * containerWidth;
@@ -63,7 +67,7 @@ export default function PinObjectLine({
             arrowheadPath(px1, py1, angle, ARROW_SIZE),
           ];
 
-  const label = OBJECT_KIND_LABEL[kind];
+  const label = t.object[kind];
   const labelWidthPx = BASE_WIDTH_PCT * containerWidth;
   const labelHeightPx = BASE_HEIGHT_PCT * containerHeight;
   const fontSizePx = Math.max(9, labelHeightPx * 0.65);

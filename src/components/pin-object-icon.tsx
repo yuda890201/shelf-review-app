@@ -6,12 +6,6 @@ const PATHS: Record<PinObjectKind, string> = {
   narrow: "M3 12h8m0 0-4-4m4 4-4 4M21 12h-8m0 0 4-4m-4 4 4 4",
 };
 
-export const OBJECT_KIND_LABEL: Record<PinObjectKind, string> = {
-  move: "移動",
-  widen: "フェイス拡げる",
-  narrow: "フェイス縮める",
-};
-
 export default function PinObjectIcon({
   kind,
   className,

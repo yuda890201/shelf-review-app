@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
+import { shelfImageThumbUrl } from "@/lib/supabase/storage";
+import { useI18n } from "@/lib/i18n/provider";
+import { LOCALE_TAGS } from "@/lib/i18n/locales";
 import PhotoAnnotator from "@/components/photo-annotator";
 import type { LayoutCurrentPhotoRow, PinObjectKind, PinRow } from "@/lib/types";
 
@@ -19,6 +21,7 @@ export default function NewProductAnnotator({
   currentUserId: string | null;
 }) {
   const supabase = createClient();
+  const { t, locale } = useI18n();
   const [pins, setPins] = useState<PinRow[]>(initialPins);
 
   async function handleSubmitPin(pin: {
@@ -33,7 +36,7 @@ export default function NewProductAnnotator({
     body: string;
     object_kind: PinObjectKind | null;
   }) {
-    if (!currentUserId) return { error: "ログインが必要です。" };
+    if (!currentUserId) return { error: t.common.loginRequired };
     const { data, error } = await supabase
       .from("pins")
       .insert({
@@ -50,20 +53,22 @@ export default function NewProductAnnotator({
   return (
     <div>
       <Link href="/new-products" className="text-xs text-blue-400 hover:underline">
-        ← 売場・写真選択に戻る
+        {t.newProducts.backToPicker}
       </Link>
       <h1 className="mb-1 mt-1 text-lg font-bold text-gray-100">{layoutName}</h1>
       <p className="mb-4 text-xs text-gray-500">
-        {photo.store_name} ・ {new Date(photo.created_at).toLocaleDateString("ja-JP")}
-        の売場写真
+        {t.newProducts.photoCaption(
+          photo.store_name,
+          new Date(photo.created_at).toLocaleDateString(LOCALE_TAGS[locale]),
+        )}
       </p>
 
       <PhotoAnnotator
-        photoUrl={shelfImagePublicUrl(photo.storage_path)}
+        photoUrl={shelfImageThumbUrl(photo)}
         pins={pins}
         currentUserId={currentUserId}
         onSubmit={handleSubmitPin}
-        hint="新商品を並べる位置をタップして、指示コメントを貼り付けてください。"
+        hint={t.newProducts.placementHint}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/provider";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -15,6 +16,7 @@ export default function PushNotificationToggle({
 }: {
   userId: string | null;
 }) {
+  const { t } = useI18n();
   const [supported] = useState(
     () =>
       typeof navigator !== "undefined" &&
@@ -84,9 +86,7 @@ export default function PushNotificationToggle({
 
   if (!supported) {
     return (
-      <p className="text-xs text-gray-500">
-        この端末は通知に対応していません(iPhoneの場合はiOS 16.4以降が必要です)。
-      </p>
+      <p className="text-xs text-gray-500">{t.push.unsupported}</p>
     );
   }
 
@@ -98,10 +98,10 @@ export default function PushNotificationToggle({
       className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm text-gray-200 active:bg-neutral-800 disabled:opacity-50"
     >
       {busy
-        ? "処理中..."
+        ? t.common.processing
         : subscribed
-          ? "🔔 通知をオフにする"
-          : "🔔 通知を有効にする"}
+          ? t.push.disable
+          : t.push.enable}
     </button>
   );
 }

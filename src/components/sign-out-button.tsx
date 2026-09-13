@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function SignOutButton() {
   const router = useRouter();
+  const { t } = useI18n();
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -18,7 +20,7 @@ export default function SignOutButton() {
       onClick={handleSignOut}
       className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm text-gray-200 active:bg-neutral-800"
     >
-      ログアウト
+      {t.nav.signOut}
     </button>
   );
 }
