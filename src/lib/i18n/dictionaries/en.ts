@@ -310,6 +310,16 @@ const en: Dictionary = {
     imageFailed: "Could not generate the image",
   },
 
+  viewer: {
+    open: "View larger",
+    close: "Close",
+    showPins: "Show pins",
+    hidePins: "Hide pins",
+    reset: "Reset zoom",
+    hint: "Double-tap to zoom / drag to pan",
+    zoomLabel: (scale) => `${scale}×`,
+  },
+
   tips: [
     "🙏 You can send Thanks as many times as you like — cheer the poster on.",
     "✅ Done / 🔧 Needs work can be tapped once per person, which shows how finished the shelf is.",

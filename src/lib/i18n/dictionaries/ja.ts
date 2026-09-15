@@ -314,6 +314,16 @@ const ja = {
     imageFailed: "画像の生成に失敗しました",
   },
 
+  viewer: {
+    open: "拡大して見る",
+    close: "閉じる",
+    showPins: "ピンを表示",
+    hidePins: "ピンを隠す",
+    reset: "等倍に戻す",
+    hint: "ダブルタップで拡大 / ドラッグで移動",
+    zoomLabel: (scale: string) => `${scale}倍`,
+  },
+
   tips: [
     "🙏 ありがとうは何回でも送れます。投稿者を応援しましょう。",
     "✅ 完成 / 🔧 まだまだ は1人1回だけ押せます。売場の完成度が可視化されます。",
