@@ -5,6 +5,7 @@ import PinChip from "@/components/pin-chip";
 import PinObjectIcon from "@/components/pin-object-icon";
 import PinObjectLine from "@/components/pin-object-line";
 import { rafThrottle } from "@/lib/raf-throttle";
+import { usePhotoZoom } from "@/lib/use-photo-zoom";
 import { useI18n } from "@/lib/i18n/provider";
 import type { PinObjectKind } from "@/lib/types";
 
@@ -88,7 +89,11 @@ export default function PhotoAnnotator({
   const formId = useId();
   const { t } = useI18n();
   const hintText = hint ?? t.pin.hint;
+  /** 拡大の枠(ここからはみ出た分は隠れる)。 */
+  const frameRef = useRef<HTMLDivElement>(null);
+  /** 写真そのもの。ピンの座標はこの要素の矩形が基準。 */
   const imageRef = useRef<HTMLDivElement>(null);
+  const zoom = usePhotoZoom(frameRef);
   const composerRef = useRef<HTMLDivElement>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const [pendingPin, setPendingPin] = useState<PendingPin | null>(null);
@@ -109,7 +114,10 @@ export default function PhotoAnnotator({
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      setImgSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      setImgSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      });
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -118,11 +126,20 @@ export default function PhotoAnnotator({
   const composerOpen = !!pendingPin || !!pendingLine;
   useEffect(() => {
     if (composerOpen) {
-      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      composerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
     }
   }, [composerOpen]);
 
   function handleContainerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (zoom.handlePointerDown(e)) {
+      // 2本指になった = 拡大操作。打ちかけのピン/矢印は取り消す。
+      gestureCleanupRef.current?.();
+      setDraftLine(null);
+      return;
+    }
     if (readOnly || !currentUserId || pendingPin || pendingLine) return;
     const rect = imageRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -225,7 +242,10 @@ export default function PhotoAnnotator({
       const localDx = dxRaw * cos - dyRaw * sin;
       const localDy = dxRaw * sin + dyRaw * cos;
       setFrameWidthPct(
-        Math.min(MAX_WIDTH_PCT, Math.max(MIN_WIDTH_PCT, (Math.abs(localDx) * 2) / rect.width)),
+        Math.min(
+          MAX_WIDTH_PCT,
+          Math.max(MIN_WIDTH_PCT, (Math.abs(localDx) * 2) / rect.width),
+        ),
       );
       setFrameHeightPct(
         Math.min(
@@ -315,148 +335,170 @@ export default function PhotoAnnotator({
 
   const textPins = pins.filter((p) => !p.object_kind);
   const objectPins = pins.filter(
-    (p): p is AnnotatorPin & {
+    (
+      p,
+    ): p is AnnotatorPin & {
       object_kind: PinObjectKind;
       end_position_x: number;
       end_position_y: number;
-    } => !!p.object_kind && p.end_position_x != null && p.end_position_y != null,
+    } =>
+      !!p.object_kind && p.end_position_x != null && p.end_position_y != null,
   );
 
   return (
     <div>
       <div
-        ref={imageRef}
+        ref={frameRef}
         onPointerDown={handleContainerPointerDown}
-        style={!readOnly && currentUserId ? { touchAction: "pan-y" } : undefined}
+        // 縦スクロールはブラウザに任せつつ、2本指のジェスチャーは奪われない
+        // ようにする(奪われるとピンチの途中で pointercancel が飛ぶ)。
+        style={{ touchAction: "pan-y" }}
         className={`relative w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 ${
           readOnly ? "" : "cursor-crosshair"
         }`}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photoUrl}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="block w-full select-none"
-          draggable={false}
-        />
-
-        {imgSize.width > 0 &&
-          textPins.map((p) => (
-            <PinChip
-              key={p.id}
-              x={p.position_x}
-              y={p.position_y}
-              widthPx={p.width_pct * imgSize.width}
-              heightPx={p.height_pct * imgSize.height}
-              rotationDeg={p.rotation_deg}
-              color={p.color}
-              text={p.body}
-              isActive={activeId === p.id}
-              onClick={
-                readOnly
-                  ? undefined
-                  : (e) => {
-                      e.stopPropagation();
-                      setActiveId(activeId === p.id ? null : p.id);
-                    }
-              }
+        {/* 拡大はこの層に掛ける。ピンの座標は imageRef の矩形基準で計算しており、
+            getBoundingClientRect() は transform を反映するので、拡大中でも
+            「指が触れた場所 = 写真上の同じ場所」がそのまま成り立つ。 */}
+        <div style={zoom.style}>
+          <div ref={imageRef} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="block w-full select-none"
+              draggable={false}
             />
-          ))}
 
-        {imgSize.width > 0 &&
-          objectPins.map((p) => (
-            <PinObjectLine
-              key={p.id}
-              x1={p.position_x}
-              y1={p.position_y}
-              x2={p.end_position_x}
-              y2={p.end_position_y}
-              containerWidth={imgSize.width}
-              containerHeight={imgSize.height}
-              kind={p.object_kind}
-              color={p.color}
-            />
-          ))}
+            {imgSize.width > 0 &&
+              textPins.map((p) => (
+                <PinChip
+                  key={p.id}
+                  x={p.position_x}
+                  y={p.position_y}
+                  widthPx={p.width_pct * imgSize.width}
+                  heightPx={p.height_pct * imgSize.height}
+                  rotationDeg={p.rotation_deg}
+                  color={p.color}
+                  text={p.body}
+                  isActive={activeId === p.id}
+                  onClick={
+                    readOnly
+                      ? undefined
+                      : (e) => {
+                          e.stopPropagation();
+                          setActiveId(activeId === p.id ? null : p.id);
+                        }
+                  }
+                />
+              ))}
 
-        {draftLine && imgSize.width > 0 && (
-          <PinObjectLine
-            x1={draftLine.x1}
-            y1={draftLine.y1}
-            x2={draftLine.x2}
-            y2={draftLine.y2}
-            containerWidth={imgSize.width}
-            containerHeight={imgSize.height}
-            kind="move"
-            color={PENDING_COLOR}
-            dashed
-            showLabel={false}
-          />
-        )}
+            {imgSize.width > 0 &&
+              objectPins.map((p) => (
+                <PinObjectLine
+                  key={p.id}
+                  x1={p.position_x}
+                  y1={p.position_y}
+                  x2={p.end_position_x}
+                  y2={p.end_position_y}
+                  containerWidth={imgSize.width}
+                  containerHeight={imgSize.height}
+                  kind={p.object_kind}
+                  color={p.color}
+                />
+              ))}
 
-        {pendingLine && imgSize.width > 0 && (
-          <PinObjectLine
-            x1={pendingLine.x1}
-            y1={pendingLine.y1}
-            x2={pendingLine.x2}
-            y2={pendingLine.y2}
-            containerWidth={imgSize.width}
-            containerHeight={imgSize.height}
-            kind="move"
-            color={PENDING_COLOR}
-            showLabel={false}
-          />
-        )}
+            {draftLine && imgSize.width > 0 && (
+              <PinObjectLine
+                x1={draftLine.x1}
+                y1={draftLine.y1}
+                x2={draftLine.x2}
+                y2={draftLine.y2}
+                containerWidth={imgSize.width}
+                containerHeight={imgSize.height}
+                kind="move"
+                color={PENDING_COLOR}
+                dashed
+                showLabel={false}
+              />
+            )}
 
-        {pendingPin && imgSize.width > 0 && (
-          <div
-            style={{
-              left: `${pendingPin.x * 100}%`,
-              top: `${pendingPin.y * 100}%`,
-              width: `${frameWidthPct * imgSize.width}px`,
-              height: `${frameHeightPct * imgSize.height}px`,
-              transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-              borderColor: PENDING_COLOR,
-              touchAction: "none",
-            }}
-            className="absolute z-20 cursor-move overflow-visible rounded border-2 border-dashed bg-transparent"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={handleMoveStart}
-          >
-            <div className="h-full w-full overflow-hidden">
-              <span
-                className="marquee-track"
+            {pendingLine && imgSize.width > 0 && (
+              <PinObjectLine
+                x1={pendingLine.x1}
+                y1={pendingLine.y1}
+                x2={pendingLine.x2}
+                y2={pendingLine.y2}
+                containerWidth={imgSize.width}
+                containerHeight={imgSize.height}
+                kind="move"
+                color={PENDING_COLOR}
+                showLabel={false}
+              />
+            )}
+
+            {pendingPin && imgSize.width > 0 && (
+              <div
                 style={{
-                  animationDuration: `${Math.max(
-                    4,
-                    (body || t.pin.preview).length * 0.18,
-                  )}s`,
+                  left: `${pendingPin.x * 100}%`,
+                  top: `${pendingPin.y * 100}%`,
+                  width: `${frameWidthPct * imgSize.width}px`,
+                  height: `${frameHeightPct * imgSize.height}px`,
+                  transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                  borderColor: PENDING_COLOR,
+                  touchAction: "none",
                 }}
+                className="absolute z-20 cursor-move overflow-visible rounded border-2 border-dashed bg-transparent"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={handleMoveStart}
               >
-                {[0, 1].map((copy) => (
+                <div className="h-full w-full overflow-hidden">
                   <span
-                    key={copy}
-                    aria-hidden={copy === 1}
-                    className="whitespace-nowrap px-2 font-black tracking-wide"
+                    className="marquee-track"
                     style={{
-                      fontSize: `${Math.max(9, frameHeightPct * imgSize.height * 0.65)}px`,
-                      lineHeight: `${frameHeightPct * imgSize.height}px`,
-                      color: PENDING_COLOR,
-                      textShadow: TEXT_OUTLINE,
+                      animationDuration: `${Math.max(
+                        4,
+                        (body || t.pin.preview).length * 0.18,
+                      )}s`,
                     }}
                   >
-                    {body || t.pin.preview}
+                    {[0, 1].map((copy) => (
+                      <span
+                        key={copy}
+                        aria-hidden={copy === 1}
+                        className="whitespace-nowrap px-2 font-black tracking-wide"
+                        style={{
+                          fontSize: `${Math.max(9, frameHeightPct * imgSize.height * 0.65)}px`,
+                          lineHeight: `${frameHeightPct * imgSize.height}px`,
+                          color: PENDING_COLOR,
+                          textShadow: TEXT_OUTLINE,
+                        }}
+                      >
+                        {body || t.pin.preview}
+                      </span>
+                    ))}
                   </span>
-                ))}
-              </span>
-            </div>
-            <div
-              onPointerDown={handleResizeStart}
-              className="absolute -bottom-3 -right-3 h-6 w-6 cursor-nwse-resize rounded-full border-2 border-white bg-blue-500 shadow"
-              style={{ touchAction: "none" }}
-            />
+                </div>
+                <div
+                  onPointerDown={handleResizeStart}
+                  className="absolute -bottom-3 -right-3 h-6 w-6 cursor-nwse-resize rounded-full border-2 border-white bg-blue-500 shadow"
+                  style={{ touchAction: "none" }}
+                />
+              </div>
+            )}
           </div>
+        </div>
+
+        {zoom.isZoomed && (
+          <button
+            type="button"
+            onClick={zoom.reset}
+            className="absolute left-2 top-2 z-30 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white"
+          >
+            {t.viewer.reset}
+          </button>
         )}
       </div>
 
@@ -465,6 +507,8 @@ export default function PhotoAnnotator({
           {hintText}
           <br />
           {t.pin.hintDrag}
+          <br />
+          {t.pin.hintZoom}
         </p>
       )}
 
