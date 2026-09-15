@@ -11,7 +11,34 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* 端末に入っているフォントだけで日本語・英語・ネパール語(デーヴァナーガリー)を
+     まかなう。Webフォントを読み込まないぶん低スペック端末でも初回表示が速い。 */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+    "Kohinoor Devanagari", "Noto Sans Devanagari", Meiryo, "Yu Gothic",
+    Roboto, Arial, sans-serif;
+  /* iOSで横スクロールバーが出ないよう、ページ本体の横あふれを抑える */
+  overflow-x: hidden;
+}
+
+/* 投稿カードは画面外にあるあいだ描画をスキップし、低スペック端末での
+   スクロールのカクつきを抑える。高さのヒントを添えてスクロール位置が
+   飛ばないようにしている。 */
+.card-defer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 640px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .heart-pop,
+  .slide-up-sheet,
+  .slide-down-sheet,
+  .confetti-piece,
+  .firework-particle {
+    animation: none !important;
+  }
 }
 
 @keyframes marquee {

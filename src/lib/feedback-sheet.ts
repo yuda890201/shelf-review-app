@@ -1,4 +1,5 @@
-import { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+import { LOCALE_TAGS, type Locale } from "@/lib/i18n/locales";
 import type { CommentType, PinObjectKind } from "@/lib/types";
 
 // A4・150dpi相当(210mm×297mm)
@@ -18,7 +19,9 @@ const GOOD = "#2f7a4f";
 const WARN = "#b5502a";
 const PENDING = "#1e4fa0";
 
-const FONT = "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif";
+// 端末に入っているフォントだけで日本語・英語・ネパール語をまかなう。
+const FONT =
+  "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Kohinoor Devanagari', 'Noto Sans Devanagari', sans-serif";
 
 export type FeedbackSheetPin = {
   id: string;
@@ -53,6 +56,9 @@ export type FeedbackSheetParams = {
   doneCount: number;
   needsWorkCount: number;
   reference: FeedbackSheetReference | null;
+  /** 表示中の言語の辞書。シートの見出しもアプリと同じ言語で書き出す。 */
+  t: Dictionary;
+  locale: Locale;
 };
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -175,7 +181,12 @@ function drawOutlinedText(
 }
 
 /** pins/comment-pin-boardのPinObjectLineと同じ向きの矢印を、実際に描画された写真の矩形基準で再現する */
-function drawObjectPin(ctx: CanvasRenderingContext2D, pin: FeedbackSheetPin, photoRect: Rect) {
+function drawObjectPin(
+  ctx: CanvasRenderingContext2D,
+  pin: FeedbackSheetPin,
+  photoRect: Rect,
+  objectLabels: Dictionary["object"],
+) {
   if (!pin.object_kind || pin.end_position_x == null || pin.end_position_y == null) return;
   const px1 = photoRect.x + pin.position_x * photoRect.w;
   const py1 = photoRect.y + pin.position_y * photoRect.h;
@@ -206,7 +217,13 @@ function drawObjectPin(ctx: CanvasRenderingContext2D, pin: FeedbackSheetPin, pho
   ctx.font = `700 24px ${FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  drawOutlinedText(ctx, OBJECT_KIND_LABEL[pin.object_kind], (px1 + px2) / 2, (py1 + py2) / 2 - 22, color);
+  drawOutlinedText(
+    ctx,
+    objectLabels[pin.object_kind],
+    (px1 + px2) / 2,
+    (py1 + py2) / 2 - 22,
+    color,
+  );
 }
 
 function drawPinBadge(
@@ -269,11 +286,14 @@ export async function generateFeedbackSheetBlob(
     params.reference ? loadImage(params.reference.photoUrl) : Promise.resolve(null),
   ]);
 
+  const { t, locale } = params;
+  const localeTag = LOCALE_TAGS[locale];
+
   const canvas = document.createElement("canvas");
   canvas.width = SHEET_WIDTH;
   canvas.height = SHEET_HEIGHT;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvasの初期化に失敗しました");
+  if (!ctx) throw new Error(t.sheet.canvasFailed);
 
   ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, SHEET_WIDTH, SHEET_HEIGHT);
@@ -284,20 +304,24 @@ export async function generateFeedbackSheetBlob(
   ctx.textAlign = "left";
   ctx.fillStyle = INK;
   ctx.font = `900 46px ${FONT}`;
-  ctx.fillText(params.storeName ?? "店舗未設定", PAD_X, y);
+  ctx.fillText(params.storeName ?? t.sheet.storeUnset, PAD_X, y);
 
   ctx.textAlign = "right";
   ctx.font = `700 26px ${FONT}`;
-  ctx.fillText("売場添削アプリ", PAD_X + CONTENT_WIDTH, y + 2);
+  ctx.fillText(t.sheet.appName, PAD_X + CONTENT_WIDTH, y + 2);
   ctx.font = `400 20px ${FONT}`;
   ctx.fillStyle = INK_SOFT;
-  const dateLabel = new Date(params.createdAt).toLocaleDateString("ja-JP", {
+  const dateLabel = new Date(params.createdAt).toLocaleDateString(localeTag, {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
   ctx.fillText(dateLabel, PAD_X + CONTENT_WIDTH, y + 40);
-  ctx.fillText(`投稿者: ${params.posterName ?? "スタッフ"}`, PAD_X + CONTENT_WIDTH, y + 66);
+  ctx.fillText(
+    t.sheet.poster(params.posterName ?? t.card.staff),
+    PAD_X + CONTENT_WIDTH,
+    y + 66,
+  );
 
   y += 60;
   if (params.truckName) {
@@ -336,7 +360,7 @@ export async function generateFeedbackSheetBlob(
   y += 26;
   ctx.fillStyle = INK;
   ctx.font = `700 30px ${FONT}`;
-  ctx.fillText(params.title || "無題のセッション", PAD_X, y);
+  ctx.fillText(params.title || t.card.untitled, PAD_X, y);
   y += 46;
 
   // --- 写真(お手本 / 現在の売場) ---
@@ -359,10 +383,14 @@ export async function generateFeedbackSheetBlob(
 
   const labelY = y;
   if (hasReference && referencePhoto && params.reference) {
-    drawPhotoLabel(`本部お手本 ・ ${params.reference.seasonLabel}`, PAD_X, INK_SOFT);
-    drawPhotoLabel("現在の売場(投稿写真)", PAD_X + colWidth + colGap, PENDING);
+    drawPhotoLabel(
+      t.sheet.reference(params.reference.seasonLabel),
+      PAD_X,
+      INK_SOFT,
+    );
+    drawPhotoLabel(t.sheet.currentPhoto, PAD_X + colWidth + colGap, PENDING);
   } else {
-    drawPhotoLabel("現在の売場(投稿写真)", PAD_X, PENDING);
+    drawPhotoLabel(t.sheet.currentPhoto, PAD_X, PENDING);
   }
   y = labelY + 30;
 
@@ -384,7 +412,7 @@ export async function generateFeedbackSheetBlob(
   const objectPins = params.pins.filter(
     (p) => p.object_kind && p.end_position_x != null && p.end_position_y != null,
   );
-  objectPins.forEach((p) => drawObjectPin(ctx, p, photoRect));
+  objectPins.forEach((p) => drawObjectPin(ctx, p, photoRect, t.object));
   textPins.forEach((p, i) => drawTextPinFrame(ctx, p, i + 1, photoRect));
 
   y += photoBoxH + 26;
@@ -392,9 +420,7 @@ export async function generateFeedbackSheetBlob(
   ctx.fillStyle = INK_SOFT;
   ctx.textAlign = "left";
   ctx.fillText(
-    hasReference
-      ? "左が本部お手本(参考)、右が今回の投稿写真。番号の枠は下記コメント全文と対応"
-      : "枠は文章コメント(番号は下記全文と対応)、矢印はオブジェクト指示(移動/フェイス拡げる/縮める)",
+    hasReference ? t.sheet.captionWithReference : t.sheet.caption,
     PAD_X,
     y,
   );
@@ -439,7 +465,7 @@ export async function generateFeedbackSheetBlob(
   if (shown < measured.length) {
     ctx.font = `400 16px ${FONT}`;
     ctx.fillStyle = INK_SOFT;
-    ctx.fillText(`ほか${measured.length - shown}件のコメントはアプリでご確認ください`, PAD_X, cy);
+    ctx.fillText(t.sheet.moreComments(measured.length - shown), PAD_X, cy);
   }
 
   // --- 集計バー ---
@@ -454,10 +480,14 @@ export async function generateFeedbackSheetBlob(
   const total = params.doneCount + params.needsWorkCount;
   const doneRate = total ? Math.round((params.doneCount / total) * 100) : 0;
   const stats: { value: string; label: string; color: string }[] = [
-    { value: String(params.clapCount), label: "🙏 ありがとう", color: INK },
-    { value: String(params.doneCount), label: "✅ 完成", color: GOOD },
-    { value: String(params.needsWorkCount), label: "🔧 まだまだ", color: WARN },
-    { value: `${doneRate}%`, label: "完成率", color: INK },
+    { value: String(params.clapCount), label: t.sheet.statThanks, color: INK },
+    { value: String(params.doneCount), label: t.sheet.statDone, color: GOOD },
+    {
+      value: String(params.needsWorkCount),
+      label: t.sheet.statNeedsWork,
+      color: WARN,
+    },
+    { value: `${doneRate}%`, label: t.sheet.statDoneRate, color: INK },
   ];
   const colW = CONTENT_WIDTH / stats.length;
   stats.forEach((s, i) => {
@@ -484,7 +514,7 @@ export async function generateFeedbackSheetBlob(
   ctx.fillStyle = INK_SOFT;
   ctx.textAlign = "left";
   ctx.fillText(
-    `${new Date().toLocaleString("ja-JP")} 書き出し`,
+    t.sheet.exportedAt(new Date().toLocaleString(localeTag)),
     PAD_X,
     footerY,
   );
@@ -494,7 +524,7 @@ export async function generateFeedbackSheetBlob(
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error("画像の生成に失敗しました"));
+      else reject(new Error(t.sheet.imageFailed));
     }, "image/png");
   });
 }

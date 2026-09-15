@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n/provider";
 
 const PULL_THRESHOLD_PX = 64;
 const MAX_PULL_PX = 100;
@@ -15,6 +16,7 @@ export default function PullToRefresh({
   onRefresh: () => Promise<void>;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startYRef = useRef<number | null>(null);
@@ -85,7 +87,7 @@ export default function PullToRefresh({
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-700 border-t-blue-500" />
         ) : (
           <span>
-            {pullDistance >= PULL_THRESHOLD_PX ? "離すと更新" : "引っ張って更新"}
+            {pullDistance >= PULL_THRESHOLD_PX ? t.feed.release : t.feed.pull}
           </span>
         )}
       </div>

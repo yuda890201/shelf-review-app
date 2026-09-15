@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
-import { compressImage } from "@/lib/image";
+import { shelfImageThumbUrl } from "@/lib/supabase/storage";
+import { uploadShelfImage } from "@/lib/upload-image";
+import { useI18n } from "@/lib/i18n/provider";
 import type {
   LayoutCurrentPhotoRow,
   LayoutReferencePhotoRow,
@@ -16,11 +17,6 @@ import type {
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 import PhotoAnnotator from "@/components/photo-annotator";
-
-const SEASON_LABEL: Record<Season, string> = {
-  spring: "春夏",
-  autumn: "秋冬",
-};
 
 function guessCurrentSeason(): Season {
   const month = new Date().getMonth() + 1;
@@ -43,6 +39,9 @@ export default function LayoutDetail({
   currentUserId: string | null;
 }) {
   const supabase = createClient();
+  const { t } = useI18n();
+  const seasonLabel = (season: Season) =>
+    season === "spring" ? t.layoutDetail.seasonSpring : t.layoutDetail.seasonAutumn;
   const [referencePhotos, setReferencePhotos] = useState(initialReferencePhotos);
   const [currentPhotos, setCurrentPhotos] = useState(initialCurrentPhotos);
   const [tasks, setTasks] = useState(initialTasks);
@@ -182,7 +181,7 @@ export default function LayoutDetail({
     body: string;
     object_kind: PinObjectKind | null;
   }) {
-    if (!latestReference) return { error: "お手本写真がまだ登録されていません" };
+    if (!latestReference) return { error: t.layoutDetail.referenceMissing };
     const { data, error } = await supabase
       .from("pins")
       .insert({ layout_reference_photo_id: latestReference.id, ...pin })
@@ -207,7 +206,7 @@ export default function LayoutDetail({
     body: string;
     object_kind: PinObjectKind | null;
   }) {
-    if (!latestCurrentForStore) return { error: "現在の売場写真がまだ登録されていません" };
+    if (!latestCurrentForStore) return { error: t.layoutDetail.currentMissing };
     const { data, error } = await supabase
       .from("pins")
       .insert({ layout_current_photo_id: latestCurrentForStore.id, ...pin })
@@ -227,14 +226,7 @@ export default function LayoutDetail({
 
     setUploadingReference(true);
     try {
-      const compressed = await compressImage(file);
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const storagePath = `${currentUserId}/${crypto.randomUUID()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("shelf-images")
-        .upload(storagePath, compressed);
-      if (uploadError) throw uploadError;
+      const paths = await uploadShelfImage(supabase, currentUserId, file);
 
       const { data, error } = await supabase
         .from("layout_reference_photos")
@@ -243,7 +235,7 @@ export default function LayoutDetail({
           season,
           // year列は今後使わないが、既存のNOT NULL制約を満たすため現在年を入れておく
           year: new Date().getFullYear(),
-          storage_path: storagePath,
+          ...paths,
           uploaded_by: currentUserId,
         })
         .select()
@@ -253,9 +245,9 @@ export default function LayoutDetail({
       setReferencePhotos((prev) => [data, ...prev]);
     } catch (err) {
       alert(
-        `お手本写真の登録に失敗しました: ${
-          err instanceof Error ? err.message : "エラー"
-        }`,
+        t.layoutDetail.referenceFailed(
+          err instanceof Error ? err.message : t.common.error,
+        ),
       );
     }
     setUploadingReference(false);
@@ -268,21 +260,14 @@ export default function LayoutDetail({
 
     setUploadingCurrent(true);
     try {
-      const compressed = await compressImage(file);
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const storagePath = `${currentUserId}/${crypto.randomUUID()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("shelf-images")
-        .upload(storagePath, compressed);
-      if (uploadError) throw uploadError;
+      const paths = await uploadShelfImage(supabase, currentUserId, file);
 
       const { data, error } = await supabase
         .from("layout_current_photos")
         .insert({
           layout_id: layout.id,
           store_name: selectedStore,
-          storage_path: storagePath,
+          ...paths,
           uploaded_by: currentUserId,
         })
         .select()
@@ -292,9 +277,9 @@ export default function LayoutDetail({
       setCurrentPhotos((prev) => [data, ...prev]);
     } catch (err) {
       alert(
-        `現在の売場写真の登録に失敗しました: ${
-          err instanceof Error ? err.message : "エラー"
-        }`,
+        t.layoutDetail.currentFailed(
+          err instanceof Error ? err.message : t.common.error,
+        ),
       );
     }
     setUploadingCurrent(false);
@@ -319,7 +304,7 @@ export default function LayoutDetail({
       setTasks((prev) => [...prev, data]);
       setNewTask("");
     } else if (error) {
-      alert(`タスクの追加に失敗しました: ${error.message}`);
+      alert(t.layoutDetail.taskFailed(error.message));
     }
     setAddingTask(false);
   }
@@ -339,24 +324,30 @@ export default function LayoutDetail({
       .update({ done: nextDone, done_at: nextDone ? nowIso : null })
       .eq("id", task.id);
     if (error) {
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
-      alert(`更新に失敗しました: ${error.message}`);
+      setTasks((prev) => prev.map((row) => (row.id === task.id ? task : row)));
+      alert(t.common.updateFailed(error.message));
     }
   }
 
   return (
     <div>
-      {uploadingReference && <LoadingOverlay label="お手本写真を登録中..." />}
-      {uploadingCurrent && <LoadingOverlay label="現在の売場写真を登録中..." />}
+      {uploadingReference && (
+        <LoadingOverlay label={t.layoutDetail.referenceUploading} />
+      )}
+      {uploadingCurrent && (
+        <LoadingOverlay label={t.layoutDetail.currentUploading} />
+      )}
 
       <h1 className="mb-4 text-lg font-bold text-gray-100">{layout.name}</h1>
 
       <div className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-300">本部お手本写真</h2>
+          <h2 className="text-sm font-bold text-gray-300">
+            {t.layoutDetail.referenceTitle}
+          </h2>
           {latestReference && (
             <span className="text-xs text-gray-500">
-              {SEASON_LABEL[latestReference.season]}
+              {seasonLabel(latestReference.season)}
             </span>
           )}
         </div>
@@ -373,7 +364,7 @@ export default function LayoutDetail({
                   : "border-neutral-600 text-gray-400"
               }`}
             >
-              {SEASON_LABEL[s]}
+              {seasonLabel(s)}
             </button>
           ))}
         </div>
@@ -397,14 +388,13 @@ export default function LayoutDetail({
         {latestReference && (
           <div className="mb-2">
             {loadingReferencePins ? (
-              <LoadingOverlay variant="inline" label="読み込み中..." />
+              <LoadingOverlay variant="inline" label={t.common.loading} />
             ) : (
               <PhotoAnnotator
-                photoUrl={shelfImagePublicUrl(latestReference.storage_path)}
+                photoUrl={shelfImageThumbUrl(latestReference)}
                 pins={referencePins}
                 currentUserId={currentUserId}
                 onSubmit={handleSubmitReferencePin}
-                hint="画像をタップして、コメントを貼り付けてください。"
               />
             )}
           </div>
@@ -417,7 +407,7 @@ export default function LayoutDetail({
             disabled={uploadingReference}
             className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
-            📷 {latestReference ? "撮り直す" : "撮影する"}
+            {latestReference ? t.common.retake : t.common.camera}
           </button>
           <button
             type="button"
@@ -425,7 +415,7 @@ export default function LayoutDetail({
             disabled={uploadingReference}
             className="flex-1 rounded-md border border-neutral-600 px-2 py-2 text-xs text-gray-200 disabled:opacity-50"
           >
-            カメラロールから選ぶ
+            {t.common.fromGallery}
           </button>
         </div>
       </div>
@@ -449,45 +439,47 @@ export default function LayoutDetail({
 
       <div className="mb-4">
         <h2 className="mb-2 text-sm font-bold text-gray-300">
-          {selectedStore}の現在の売場
+          {t.layoutDetail.currentTitle(selectedStore)}
         </h2>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <p className="mb-1 text-center text-xs font-medium text-gray-500">
-              本部お手本
+              {t.layoutDetail.referenceShort}
             </p>
             {latestReference ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={shelfImagePublicUrl(latestReference.storage_path)}
-                alt="本部お手本写真"
+                src={shelfImageThumbUrl(latestReference)}
+                alt={t.layoutDetail.referenceAlt}
+                loading="lazy"
+                decoding="async"
                 className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
               />
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-md border border-neutral-800 bg-neutral-900 text-[11px] text-gray-600">
-                未登録
+                {t.common.notRegistered}
               </div>
             )}
           </div>
           <div>
             <p className="mb-1 text-center text-xs font-medium text-blue-400">
-              現在の売場
+              {t.layoutDetail.currentShort}
             </p>
             {latestCurrentForStore ? (
               loadingCurrentPins ? (
-                <LoadingOverlay variant="inline" label="読み込み中..." />
+                <LoadingOverlay variant="inline" label={t.common.loading} />
               ) : (
                 <PhotoAnnotator
-                  photoUrl={shelfImagePublicUrl(latestCurrentForStore.storage_path)}
+                  photoUrl={shelfImageThumbUrl(latestCurrentForStore)}
                   pins={currentPins}
                   currentUserId={currentUserId}
                   onSubmit={handleSubmitCurrentPin}
-                  hint="タップしてコメントを貼り付け"
+                  hint={t.pin.hintTapOnly}
                 />
               )
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-md border border-blue-900 bg-neutral-900 text-[11px] text-gray-600">
-                未登録
+                {t.common.notRegistered}
               </div>
             )}
           </div>
@@ -515,7 +507,7 @@ export default function LayoutDetail({
             disabled={uploadingCurrent}
             className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
-            📷 {latestCurrentForStore ? "撮り直す" : "撮影する"}
+            {latestCurrentForStore ? t.common.retake : t.common.camera}
           </button>
           <button
             type="button"
@@ -523,14 +515,18 @@ export default function LayoutDetail({
             disabled={uploadingCurrent}
             className="flex-1 rounded-md border border-neutral-600 px-2 py-2 text-xs text-gray-200 disabled:opacity-50"
           >
-            カメラロールから選ぶ
+            {t.common.fromGallery}
           </button>
         </div>
       </div>
 
       <div>
         <h2 className="mb-2 text-sm font-bold text-gray-300">
-          {selectedStore}のタスク ({doneTasks.length}/{storeTasks.length}完了)
+          {t.layoutDetail.tasksTitle(
+            selectedStore,
+            doneTasks.length,
+            storeTasks.length,
+          )}
         </h2>
 
         <form onSubmit={handleAddTask} className="mb-3 flex gap-2">
@@ -538,7 +534,7 @@ export default function LayoutDetail({
             type="text"
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
-            placeholder="やるべきことを入力..."
+            placeholder={t.layoutDetail.taskPlaceholder}
             className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-base text-gray-100 placeholder-gray-500"
           />
           <button
@@ -546,12 +542,12 @@ export default function LayoutDetail({
             disabled={addingTask || !newTask.trim()}
             className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            追加
+            {t.common.add}
           </button>
         </form>
 
         {storeTasks.length === 0 && (
-          <p className="text-xs text-gray-500">まだタスクがありません。</p>
+          <p className="text-xs text-gray-500">{t.layoutDetail.taskEmpty}</p>
         )}
 
         <ul className="flex flex-col gap-2">
@@ -567,7 +563,9 @@ export default function LayoutDetail({
               <button
                 type="button"
                 onClick={() => handleToggleTask(task)}
-                aria-label={task.done ? "未完了に戻す" : "完了にする"}
+                aria-label={
+                  task.done ? t.layoutDetail.taskUncheck : t.layoutDetail.taskCheck
+                }
                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
                   task.done
                     ? "border-blue-500 bg-blue-600 text-white"

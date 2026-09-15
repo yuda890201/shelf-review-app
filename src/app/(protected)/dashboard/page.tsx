@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { getDictionary } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { ReactionRow, SessionWithImage } from "@/lib/types";
 
 type GroupStat = {
@@ -46,10 +48,12 @@ function Section({
   title,
   stats,
   className,
+  t,
 }: {
   title: string;
   stats: GroupStat[];
   className?: string;
+  t: Dictionary;
 }) {
   if (stats.length === 0) return null;
   return (
@@ -63,7 +67,9 @@ function Section({
           >
             <div className="mb-1 flex items-center justify-between text-sm">
               <span className="font-semibold text-gray-100">{s.key}</span>
-              <span className="text-xs text-gray-500">{s.total}件の反応</span>
+              <span className="text-xs text-gray-500">
+                {t.dashboard.reactionCount(s.total)}
+              </span>
             </div>
             <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
               <div
@@ -76,8 +82,8 @@ function Section({
               />
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-              <span>完成率 {100 - s.needsWorkRate}%</span>
-              <span>まだまだ率 {s.needsWorkRate}%</span>
+              <span>{t.card.doneRate(100 - s.needsWorkRate)}</span>
+              <span>{t.card.needsWorkRate(s.needsWorkRate)}</span>
             </div>
           </div>
         ))}
@@ -87,7 +93,7 @@ function Section({
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const [supabase, t] = await Promise.all([createClient(), getDictionary()]);
 
   const { data: sessions } = await supabase
     .from("sessions")
@@ -112,19 +118,22 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-lg font-bold text-gray-100">まだまだ率ダッシュボード</h1>
-      <p className="mb-6 text-xs text-gray-500">
-        店舗・売場カテゴリごとの「完成/まだまだ」反応の集計です。まだまだ率が高い順に並んでいます。
-      </p>
+      <h1 className="mb-1 text-lg font-bold text-gray-100">
+        {t.dashboard.title}
+      </h1>
+      <p className="mb-6 text-xs text-gray-500">{t.dashboard.description}</p>
 
       {byStore.length === 0 && byCategory.length === 0 && (
-        <p className="text-sm text-gray-500">
-          まだリアクションのデータがありません。フィードで「完成」「まだまだ」を押すとここに集計されます。
-        </p>
+        <p className="text-sm text-gray-500">{t.dashboard.empty}</p>
       )}
 
-      <Section title="店舗別" stats={byStore} />
-      <Section title="売場カテゴリ別" stats={byCategory} className="mt-8" />
+      <Section title={t.dashboard.byStore} stats={byStore} t={t} />
+      <Section
+        title={t.dashboard.byTruck}
+        stats={byCategory}
+        className="mt-8"
+        t={t}
+      />
     </div>
   );
 }

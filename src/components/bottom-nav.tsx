@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SignOutButton from "@/components/sign-out-button";
+import LanguageSwitcher from "@/components/language-switcher";
+import { useI18n } from "@/lib/i18n/provider";
 import PushNotificationToggle from "@/components/push-notification-toggle";
 
 function Icon({ d, active }: { d: string; active: boolean }) {
@@ -45,6 +47,7 @@ export default function BottomNav({
   userId: string | null;
 }) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [profileOpen, setProfileOpen] = useState(false);
 
   const tabs: { href: string; icon: keyof typeof ICONS; badge?: number }[] = [
@@ -66,31 +69,34 @@ export default function BottomNav({
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-3 text-sm font-semibold text-gray-100">
-              {displayName ?? "ゲスト"}
+              {displayName ?? t.nav.guest}
             </p>
             <Link
               href="/comments"
               onClick={() => setProfileOpen(false)}
               className="mb-2 block w-full rounded-md border border-neutral-700 px-3 py-2 text-center text-sm text-gray-200 active:bg-neutral-800"
             >
-              💬 コメント一覧
+              {t.nav.comments}
             </Link>
             <Link
               href="/dashboard"
               onClick={() => setProfileOpen(false)}
               className="mb-2 block w-full rounded-md border border-neutral-700 px-3 py-2 text-center text-sm text-gray-200 active:bg-neutral-800"
             >
-              📊 ダッシュボード
+              {t.nav.dashboard}
             </Link>
             <Link
               href="/masters"
               onClick={() => setProfileOpen(false)}
               className="mb-2 block w-full rounded-md border border-neutral-700 px-3 py-2 text-center text-sm text-gray-200 active:bg-neutral-800"
             >
-              🏬 店舗・納品トラックの管理
+              {t.nav.masters}
             </Link>
             <div className="mb-2">
               <PushNotificationToggle userId={userId} />
+            </div>
+            <div className="mb-3">
+              <LanguageSwitcher />
             </div>
             <SignOutButton />
           </div>
@@ -99,7 +105,7 @@ export default function BottomNav({
 
       <nav
         className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-800 bg-black pb-[env(safe-area-inset-bottom)]"
-        aria-label="メインメニュー"
+        aria-label={t.nav.menu}
       >
         <div className="mx-auto flex max-w-4xl items-center justify-around px-2 py-2.5">
           {tabs.map((tab) => {
@@ -114,7 +120,7 @@ export default function BottomNav({
                   key={tab.href}
                   href={tab.href}
                   className="-mt-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-950/50 active:bg-blue-700"
-                  aria-label="新規セッション"
+                  aria-label={t.nav.newSession}
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -152,7 +158,7 @@ export default function BottomNav({
             type="button"
             onClick={() => setProfileOpen(true)}
             className="flex items-center justify-center p-2 text-gray-500"
-            aria-label="プロフィール"
+            aria-label={t.nav.profile}
           >
             <Icon d={ICONS.profile} active={false} />
           </button>

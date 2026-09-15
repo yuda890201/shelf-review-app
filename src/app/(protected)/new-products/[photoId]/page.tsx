@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getDictionary } from "@/lib/i18n/server";
 import type { LayoutCurrentPhotoRow, LayoutRow, PinRow } from "@/lib/types";
 import NewProductAnnotator from "./new-product-annotator";
 
@@ -9,7 +10,7 @@ export default async function NewProductPhotoPage({
   params: Promise<{ photoId: string }>;
 }) {
   const { photoId } = await params;
-  const supabase = await createClient();
+  const [supabase, t] = await Promise.all([createClient(), getDictionary()]);
 
   const {
     data: { user },
@@ -39,7 +40,7 @@ export default async function NewProductPhotoPage({
   return (
     <NewProductAnnotator
       photo={photo}
-      layoutName={layout?.name ?? "不明な売場"}
+      layoutName={layout?.name ?? t.newProducts.unknownGondola}
       initialPins={pins ?? []}
       currentUserId={user?.id ?? null}
     />

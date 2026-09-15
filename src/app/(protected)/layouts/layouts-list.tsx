@@ -3,13 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImagePublicUrl } from "@/lib/supabase/storage";
+import { shelfImageThumbUrl } from "@/lib/supabase/storage";
+import { useI18n } from "@/lib/i18n/provider";
 import type { LayoutReferencePhotoRow, LayoutRow } from "@/lib/types";
-
-const SEASON_LABEL: Record<string, string> = {
-  spring: "春夏",
-  autumn: "秋冬",
-};
 
 export default function LayoutsList({
   layouts,
@@ -25,6 +21,7 @@ export default function LayoutsList({
   totalStores: number;
 }) {
   const supabase = createClient();
+  const { t } = useI18n();
   const [items, setItems] = useState<LayoutRow[]>(layouts);
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
@@ -43,26 +40,22 @@ export default function LayoutsList({
       setItems((prev) => [...prev, data]);
       setNewName("");
     } else if (error) {
-      alert(`追加に失敗しました: ${error.message}`);
+      alert(t.common.addFailed(error.message));
     }
     setAdding(false);
   }
 
   return (
     <div>
-      <h1 className="mb-1 text-lg font-bold text-gray-100">
-        本部レイアウト比較
-      </h1>
-      <p className="mb-4 text-xs text-gray-500">
-        本部が発表する売場レイアウト(お手本写真)と各店舗の現在の売場写真を比較し、対応タスクを管理します。
-      </p>
+      <h1 className="mb-1 text-lg font-bold text-gray-100">{t.layouts.title}</h1>
+      <p className="mb-4 text-xs text-gray-500">{t.layouts.description}</p>
 
       <form onSubmit={handleAdd} className="mb-4 flex gap-2">
         <input
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="新しい売場名を入力(例: おにぎり什器)"
+          placeholder={t.layouts.addPlaceholder}
           className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
         />
         <button
@@ -70,14 +63,12 @@ export default function LayoutsList({
           disabled={adding || !newName.trim()}
           className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          追加
+          {t.common.add}
         </button>
       </form>
 
       {items.length === 0 && (
-        <p className="text-sm text-gray-500">
-          まだ売場が登録されていません。上のフォームから追加してください。
-        </p>
+        <p className="text-sm text-gray-500">{t.layouts.empty}</p>
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -96,14 +87,16 @@ export default function LayoutsList({
                 {reference && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={shelfImagePublicUrl(reference.storage_path)}
+                    src={shelfImageThumbUrl(reference)}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 )}
                 {!reference && (
                   <div className="flex h-full w-full items-center justify-center text-xs text-gray-600">
-                    お手本写真未登録
+                    {t.layouts.noReference}
                   </div>
                 )}
               </div>
@@ -113,12 +106,18 @@ export default function LayoutsList({
                 </p>
                 <p className="truncate text-[11px] text-gray-500">
                   {reference
-                    ? `${SEASON_LABEL[reference.season]} · 現在写真 ${coverage}/${totalStores}店舗`
-                    : `現在写真 ${coverage}/${totalStores}店舗`}
+                    ? t.layouts.coverageWithSeason(
+                        reference.season === "spring"
+                          ? t.layoutDetail.seasonSpring
+                          : t.layoutDetail.seasonAutumn,
+                        coverage,
+                        totalStores,
+                      )
+                    : t.layouts.coverage(coverage, totalStores)}
                 </p>
                 {openTasks > 0 && (
                   <span className="mt-1 inline-block rounded-full bg-orange-900/50 px-2 py-0.5 text-[11px] font-medium text-orange-300">
-                    未完了タスク {openTasks}
+                    {t.layouts.openTasks(openTasks)}
                   </span>
                 )}
               </div>

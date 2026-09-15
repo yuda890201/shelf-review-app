@@ -3,9 +3,11 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/provider";
 
 function LoginForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
 
@@ -22,7 +24,7 @@ function LoginForm() {
     const { data, error } = await supabase.auth.signInAnonymously();
 
     if (error || !data.user) {
-      setErrorMessage(error?.message ?? "ログインに失敗しました。");
+      setErrorMessage(error?.message ?? t.login.failed);
       setSubmitting(false);
       return;
     }
@@ -45,15 +47,13 @@ function LoginForm() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-2 text-xl font-bold text-gray-100">売場添削アプリ</h1>
-      <p className="mb-6 text-sm text-gray-400">
-        お名前を入力して始めてください。
-      </p>
+      <h1 className="mb-2 text-xl font-bold text-gray-100">{t.login.title}</h1>
+      <p className="mb-6 text-sm text-gray-400">{t.login.subtitle}</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input
           type="text"
           required
-          placeholder="例: 山田"
+          placeholder={t.login.namePlaceholder}
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
@@ -63,7 +63,7 @@ function LoginForm() {
           disabled={submitting}
           className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {submitting ? "処理中..." : "はじめる"}
+          {submitting ? t.common.processing : t.login.start}
         </button>
         {errorMessage && (
           <p className="text-sm text-red-400">{errorMessage}</p>

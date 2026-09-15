@@ -4,6 +4,8 @@ export type CommentType = "good" | "bad";
 export type ImageRow = {
   id: string;
   storage_path: string;
+  /** フィード表示用の軽いサムネイル。旧データにはないのでnullになりうる。 */
+  thumb_path: string | null;
   uploaded_by: string | null;
   store_name: string | null;
   shelf_category: string | null;
@@ -98,6 +100,7 @@ export type LayoutReferencePhotoRow = {
   season: Season;
   year: number;
   storage_path: string;
+  thumb_path: string | null;
   uploaded_by: string | null;
   created_at: string;
 };
@@ -107,6 +110,7 @@ export type LayoutCurrentPhotoRow = {
   layout_id: string;
   store_name: string;
   storage_path: string;
+  thumb_path: string | null;
   uploaded_by: string | null;
   created_at: string;
 };
@@ -152,6 +156,15 @@ export type StoreRow = {
 export type DeliveryTruckRow = {
   id: string;
   name: string;
+  sort_order: number;
+  created_at: string;
+};
+
+/** 納品トラック(便)とゴンドラ(売場)の対応。1つの便が複数のゴンドラを持つ。 */
+export type TruckLayoutRow = {
+  id: string;
+  delivery_truck_id: string;
+  layout_id: string;
   sort_order: number;
   created_at: string;
 };

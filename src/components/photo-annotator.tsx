@@ -2,8 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import PinChip from "@/components/pin-chip";
-import PinObjectIcon, { OBJECT_KIND_LABEL } from "@/components/pin-object-icon";
+import PinObjectIcon from "@/components/pin-object-icon";
 import PinObjectLine from "@/components/pin-object-line";
+import { rafThrottle } from "@/lib/raf-throttle";
+import { useI18n } from "@/lib/i18n/provider";
 import type { PinObjectKind } from "@/lib/types";
 
 type PendingPin = { x: number; y: number };
@@ -63,7 +65,7 @@ export default function PhotoAnnotator({
   currentUserId,
   onSubmit,
   readOnly = false,
-  hint = "画像をタップして、コメントを貼り付けてください。",
+  hint,
 }: {
   photoUrl: string;
   pins: AnnotatorPin[];
@@ -84,6 +86,8 @@ export default function PhotoAnnotator({
   hint?: string;
 }) {
   const formId = useId();
+  const { t } = useI18n();
+  const hintText = hint ?? t.pin.hint;
   const imageRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
@@ -131,13 +135,14 @@ export default function PhotoAnnotator({
     let endY = startY;
 
     function cleanup() {
+      onMove.cancel();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
       gestureCleanupRef.current = null;
     }
 
-    function onMove(ev: PointerEvent) {
+    const onMove = rafThrottle((ev: PointerEvent) => {
       const dx = ev.clientX - startClientX;
       const dy = ev.clientY - startClientY;
       if (!moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) moved = true;
@@ -148,7 +153,7 @@ export default function PhotoAnnotator({
         endY = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
         setDraftLine({ x1: startX, y1: startY, x2: endX, y2: endY });
       }
-    }
+    });
 
     function onUp() {
       cleanup();
@@ -177,8 +182,10 @@ export default function PhotoAnnotator({
     window.addEventListener("pointercancel", onCancel);
   }
 
-  function startDrag(onMove: (e: PointerEvent) => void) {
+  function startDrag(handler: (e: PointerEvent) => void) {
+    const onMove = rafThrottle(handler);
     const handleUp = () => {
+      onMove.cancel();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", handleUp);
       dragCleanupRef.current = null;
@@ -265,7 +272,7 @@ export default function PhotoAnnotator({
       object_kind: null,
     });
     if (result && "error" in result && result.error) {
-      alert(`投稿に失敗しました: ${result.error}`);
+      alert(t.common.postFailed(result.error));
     } else {
       setPendingPin(null);
       setBody("");
@@ -290,7 +297,7 @@ export default function PhotoAnnotator({
       object_kind: kind,
     });
     if (result && "error" in result && result.error) {
-      alert(`投稿に失敗しました: ${result.error}`);
+      alert(t.common.postFailed(result.error));
     } else {
       setPendingLine(null);
     }
@@ -320,6 +327,8 @@ export default function PhotoAnnotator({
         <img
           src={photoUrl}
           alt=""
+          loading="lazy"
+          decoding="async"
           className="block w-full select-none"
           draggable={false}
         />
@@ -410,7 +419,10 @@ export default function PhotoAnnotator({
               <span
                 className="marquee-track"
                 style={{
-                  animationDuration: `${Math.max(4, (body || "プレビュー").length * 0.18)}s`,
+                  animationDuration: `${Math.max(
+                    4,
+                    (body || t.pin.preview).length * 0.18,
+                  )}s`,
                 }}
               >
                 {[0, 1].map((copy) => (
@@ -425,7 +437,7 @@ export default function PhotoAnnotator({
                       textShadow: TEXT_OUTLINE,
                     }}
                   >
-                    {body || "(プレビュー)"}
+                    {body || t.pin.preview}
                   </span>
                 ))}
               </span>
@@ -439,11 +451,11 @@ export default function PhotoAnnotator({
         )}
       </div>
 
-      {!readOnly && !composerOpen && hint && (
+      {!readOnly && !composerOpen && hintText && (
         <p className="mt-2 text-xs text-gray-500">
-          {hint}
+          {hintText}
           <br />
-          ドラッグで始点→終点を指定すると「移動/フェイス拡げる/縮める」を配置できます。
+          {t.pin.hintDrag}
         </p>
       )}
 
@@ -452,7 +464,7 @@ export default function PhotoAnnotator({
           ref={composerRef}
           className="mt-3 flex flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3"
         >
-          <p className="text-xs text-gray-400">どのオブジェクトを配置しますか?</p>
+          <p className="text-xs text-gray-400">{t.pin.whichObject}</p>
           <div className="flex gap-2">
             {OBJECT_KINDS.map((kind) => (
               <button
@@ -464,7 +476,7 @@ export default function PhotoAnnotator({
               >
                 <PinObjectIcon kind={kind} className="h-6 w-6" />
                 <span className="text-[10px] leading-tight">
-                  {OBJECT_KIND_LABEL[kind]}
+                  {t.object[kind]}
                 </span>
               </button>
             ))}
@@ -475,7 +487,7 @@ export default function PhotoAnnotator({
             disabled={submitting}
             className="rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200 disabled:opacity-50"
           >
-            キャンセル
+            {t.common.cancel}
           </button>
         </div>
       )}
@@ -493,13 +505,13 @@ export default function PhotoAnnotator({
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="コメントを入力..."
+              placeholder={t.pin.bodyPlaceholder}
               rows={2}
               className="w-full rounded-md border border-neutral-600 bg-neutral-800/70 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
             />
 
             <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span className="w-10 shrink-0">角度</span>
+              <span className="w-10 shrink-0">{t.pin.angle}</span>
               <input
                 type="range"
                 min={-180}
@@ -509,10 +521,8 @@ export default function PhotoAnnotator({
                 onChange={(e) => setRotation(Number(e.target.value))}
                 className="flex-1"
               />
-              <span className="text-right text-[11px] leading-tight text-gray-500">
-                枠をドラッグで移動
-                <br />
-                右下の◯で縦横自由にサイズ変更
+              <span className="whitespace-pre-line text-right text-[11px] leading-tight text-gray-500">
+                {t.pin.frameHint}
               </span>
             </div>
           </form>
@@ -523,7 +533,7 @@ export default function PhotoAnnotator({
               onClick={() => setPendingPin(null)}
               className="flex-1 rounded-md border border-neutral-600 bg-neutral-800/70 px-2 py-2 text-xs text-gray-200"
             >
-              キャンセル
+              {t.common.cancel}
             </button>
             <button
               type="submit"
@@ -531,7 +541,7 @@ export default function PhotoAnnotator({
               disabled={submitting || !body.trim()}
               className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"
             >
-              投稿
+              {t.pin.submit}
             </button>
           </div>
         </div>
