@@ -96,6 +96,7 @@ const ne: Dictionary = {
   },
 
   pin: {
+    hintZoom: "दुई औंलाले च्यापेर ठूलो बनाउन सकिन्छ (ठूलो पारेरै पिन राख्न मिल्छ)",
     hint: "फोटोमा ट्याप गरेर आफूले देखेको ठाउँमा पिन राख्नुहोस्।",
     hintFeed: "ट्याप गरेर कमेन्ट राख्नुहोस् (डबल ट्यापले 🙏)",
     hintTapOnly: "ट्याप गरेर कमेन्ट राख्ने",
@@ -308,6 +309,16 @@ const ne: Dictionary = {
     exportedAt: (dateTime) => `${dateTime} मा निकालिएको`,
     canvasFailed: "Canvas सुरु गर्न सकिएन",
     imageFailed: "फोटो बनाउन सकिएन",
+  },
+
+  viewer: {
+    open: "ठूलो बनाएर हेर्ने",
+    close: "बन्द गर्ने",
+    showPins: "पिन देखाउने",
+    hidePins: "पिन लुकाउने",
+    reset: "सामान्य आकारमा",
+    hint: "डबल ट्यापले ठूलो / ड्र्याग गरेर सार्ने",
+    zoomLabel: (scale) => `${scale}×`,
   },
 
   tips: [

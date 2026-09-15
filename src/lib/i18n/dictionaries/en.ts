@@ -96,6 +96,7 @@ const en: Dictionary = {
   },
 
   pin: {
+    hintZoom: "Pinch with two fingers to zoom (you can still place pins while zoomed)",
     hint: "Tap the photo to pin a note where you noticed something.",
     hintFeed: "Tap to add a note (double-tap for 🙏)",
     hintTapOnly: "Tap to add a note",
@@ -308,6 +309,16 @@ const en: Dictionary = {
     exportedAt: (dateTime) => `Exported ${dateTime}`,
     canvasFailed: "Could not initialise the canvas",
     imageFailed: "Could not generate the image",
+  },
+
+  viewer: {
+    open: "View larger",
+    close: "Close",
+    showPins: "Show pins",
+    hidePins: "Hide pins",
+    reset: "Reset zoom",
+    hint: "Double-tap to zoom / drag to pan",
+    zoomLabel: (scale) => `${scale}×`,
   },
 
   tips: [

@@ -21,6 +21,7 @@ import type {
   TagRow,
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
+import PhotoViewer from "@/components/photo-viewer";
 import { formatRelativeTime } from "@/lib/format-time";
 import CommentPinBoard from "./comment-pin-board";
 
@@ -71,6 +72,10 @@ function SessionCard({
   const [closing, setClosing] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [generatingSheet, setGeneratingSheet] = useState(false);
+  /** 拡大ビューアで開いている写真(改善前/改善後で切り替わる)。 */
+  const [viewing, setViewing] = useState<
+    { url: string; alt: string; withPins: boolean } | null
+  >(null);
   const resolveCameraRef = useRef<HTMLInputElement>(null);
   const resolveGalleryRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +86,15 @@ function SessionCard({
   const total = doneCount + needsWorkCount;
   const doneRate = total ? Math.round((doneCount / total) * 100) : 0;
   const needsWorkRate = total ? 100 - doneRate : 0;
+
+  function openViewer(alt: string, withPins: boolean) {
+    if (!session.images) return;
+    setViewing({
+      url: shelfImagePublicUrl(session.images.storage_path),
+      alt,
+      withPins,
+    });
+  }
 
   async function handleClose() {
     if (!confirm(t.card.confirmClose)) return;
@@ -271,6 +285,15 @@ function SessionCard({
       {resolving && <LoadingOverlay label={t.card.resolvingPhoto} />}
       {generatingSheet && <LoadingOverlay label={t.card.sheetGenerating} />}
 
+      {viewing && (
+        <PhotoViewer
+          photoUrl={viewing.url}
+          alt={viewing.alt}
+          pins={viewing.withPins ? sessionComments : []}
+          onClose={() => setViewing(null)}
+        />
+      )}
+
       <article
         id={`session-${session.id}`}
         // card-defer: 画面外のカードは描画を後回しにして、低スペック端末での
@@ -336,27 +359,48 @@ function SessionCard({
               <p className="mb-1 text-center text-xs font-medium text-gray-500">
                 {t.card.before}
               </p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={shelfImageThumbUrl(session.images)}
-                alt={t.card.before}
-                loading="lazy"
-                decoding="async"
-                className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => openViewer(t.card.before, true)}
+                className="block w-full"
+                aria-label={t.viewer.open}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shelfImageThumbUrl(session.images)}
+                  alt={t.card.before}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
+                />
+              </button>
             </div>
             <div>
               <p className="mb-1 text-center text-xs font-medium text-blue-400">
                 {t.card.after}
               </p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={shelfImageThumbUrl(session.after_image)}
-                alt={t.card.after}
-                loading="lazy"
-                decoding="async"
-                className="aspect-square w-full rounded-md border border-blue-800 object-cover"
-              />
+              <button
+                type="button"
+                onClick={() =>
+                  session.after_image &&
+                  setViewing({
+                    url: shelfImagePublicUrl(session.after_image.storage_path),
+                    alt: t.card.after,
+                    withPins: false,
+                  })
+                }
+                className="block w-full"
+                aria-label={t.viewer.open}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shelfImageThumbUrl(session.after_image)}
+                  alt={t.card.after}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-square w-full rounded-md border border-blue-800 object-cover"
+                />
+              </button>
             </div>
           </div>
         )}
@@ -430,6 +474,14 @@ function SessionCard({
               <span className="text-xl leading-none">💬</span>
               <span className="text-xs">{sessionComments.length}</span>
             </span>
+            <button
+              type="button"
+              onClick={() => openViewer(t.pin.photoAlt, true)}
+              className="text-xl leading-none text-gray-400"
+              aria-label={t.viewer.open}
+            >
+              🔍
+            </button>
             <button
               type="button"
               onClick={handleGenerateFeedbackSheet}

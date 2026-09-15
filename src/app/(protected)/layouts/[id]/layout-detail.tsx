@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { shelfImageThumbUrl } from "@/lib/supabase/storage";
+import { shelfImagePublicUrl, shelfImageThumbUrl } from "@/lib/supabase/storage";
 import { uploadShelfImage } from "@/lib/upload-image";
 import { useI18n } from "@/lib/i18n/provider";
 import type {
@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import LoadingOverlay from "@/components/loading-overlay";
 import PhotoAnnotator from "@/components/photo-annotator";
+import PhotoViewer, { type ViewerPin } from "@/components/photo-viewer";
 
 function guessCurrentSeason(): Season {
   const month = new Date().getMonth() + 1;
@@ -51,6 +52,10 @@ export default function LayoutDetail({
   const [uploadingCurrent, setUploadingCurrent] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+  /** 拡大ビューアで開いている写真。お手本と現在の売場を同じ仕組みで見る。 */
+  const [viewing, setViewing] = useState<
+    { url: string; alt: string; pins: ViewerPin[] } | null
+  >(null);
   const [referencePinsById, setReferencePinsById] = useState<Record<string, PinRow[]>>({});
   const [currentPinsById, setCurrentPinsById] = useState<Record<string, PinRow[]>>({});
 
@@ -331,6 +336,15 @@ export default function LayoutDetail({
 
   return (
     <div>
+      {viewing && (
+        <PhotoViewer
+          photoUrl={viewing.url}
+          alt={viewing.alt}
+          pins={viewing.pins}
+          onClose={() => setViewing(null)}
+        />
+      )}
+
       {uploadingReference && (
         <LoadingOverlay label={t.layoutDetail.referenceUploading} />
       )}
@@ -401,6 +415,22 @@ export default function LayoutDetail({
         )}
 
         <div className="flex gap-2">
+          {latestReference && (
+            <button
+              type="button"
+              onClick={() =>
+                setViewing({
+                  url: shelfImagePublicUrl(latestReference.storage_path),
+                  alt: t.layoutDetail.referenceAlt,
+                  pins: referencePins,
+                })
+              }
+              className="shrink-0 rounded-md border border-neutral-600 px-3 py-2 text-xs text-gray-200"
+              aria-label={t.viewer.open}
+            >
+              🔍
+            </button>
+          )}
           <button
             type="button"
             onClick={() => referenceCameraRef.current?.click()}
@@ -447,14 +477,27 @@ export default function LayoutDetail({
               {t.layoutDetail.referenceShort}
             </p>
             {latestReference ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={shelfImageThumbUrl(latestReference)}
-                alt={t.layoutDetail.referenceAlt}
-                loading="lazy"
-                decoding="async"
-                className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
-              />
+              <button
+                type="button"
+                onClick={() =>
+                  setViewing({
+                    url: shelfImagePublicUrl(latestReference.storage_path),
+                    alt: t.layoutDetail.referenceAlt,
+                    pins: referencePins,
+                  })
+                }
+                className="block w-full"
+                aria-label={t.viewer.open}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shelfImageThumbUrl(latestReference)}
+                  alt={t.layoutDetail.referenceAlt}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
+                />
+              </button>
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-md border border-neutral-800 bg-neutral-900 text-[11px] text-gray-600">
                 {t.common.notRegistered}
@@ -501,6 +544,22 @@ export default function LayoutDetail({
           className="hidden"
         />
         <div className="mt-2 flex gap-2">
+          {latestCurrentForStore && (
+            <button
+              type="button"
+              onClick={() =>
+                setViewing({
+                  url: shelfImagePublicUrl(latestCurrentForStore.storage_path),
+                  alt: t.layoutDetail.currentShort,
+                  pins: currentPins,
+                })
+              }
+              className="shrink-0 rounded-md border border-neutral-600 px-3 py-2 text-xs text-gray-200"
+              aria-label={t.viewer.open}
+            >
+              🔍
+            </button>
+          )}
           <button
             type="button"
             onClick={() => currentCameraRef.current?.click()}

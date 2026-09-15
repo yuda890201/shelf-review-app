@@ -98,6 +98,7 @@ const ja = {
   },
 
   pin: {
+    hintZoom: "2本指でつまむと拡大できます(拡大したままピンを置けます)",
     hint: "画像をタップして、気づいた箇所にピンを打ってください。",
     hintFeed: "タップしてコメントを貼り付け(ダブルタップで🙏)",
     hintTapOnly: "タップしてコメントを貼り付け",
@@ -312,6 +313,16 @@ const ja = {
     exportedAt: (dateTime: string) => `${dateTime} 書き出し`,
     canvasFailed: "Canvasの初期化に失敗しました",
     imageFailed: "画像の生成に失敗しました",
+  },
+
+  viewer: {
+    open: "拡大して見る",
+    close: "閉じる",
+    showPins: "ピンを表示",
+    hidePins: "ピンを隠す",
+    reset: "等倍に戻す",
+    hint: "ダブルタップで拡大 / ドラッグで移動",
+    zoomLabel: (scale: string) => `${scale}倍`,
   },
 
   tips: [
