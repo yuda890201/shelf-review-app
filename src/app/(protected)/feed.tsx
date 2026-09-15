@@ -9,6 +9,7 @@ import {
   DEFAULT_FEED_FILTERS,
   FEED_PAGE_SIZE,
   fetchFeedPage,
+  fetchSessionWithRelations,
   type FeedFilters,
   type FeedPage,
   type FeedSortMode,
@@ -17,12 +18,10 @@ import type {
   ClapRow,
   CommentRow,
   CommentType,
-  DeliveryTruckRow,
   LayoutRow,
   ReactionRow,
   ReactionType,
   SessionWithImage,
-  StoreRow,
   TagRow,
 } from "@/lib/types";
 import SessionCard from "./session-card";
@@ -40,19 +39,29 @@ const ThankYouCelebration = dynamic(
 const NO_COMMENTS: CommentRow[] = [];
 const NO_REACTIONS: ReactionRow[] = [];
 
+/** 既にある行はそのままに、まだ無い行だけを後ろに足す。 */
+function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
+  if (incoming.length === 0) return current;
+  const seen = new Set(current.map((row) => row.id));
+  const added = incoming.filter((row) => !seen.has(row.id));
+  return added.length === 0 ? current : [...current, ...added];
+}
+
 export default function Feed({
   initialPage,
   initialProfileNames,
   layouts,
-  stores,
-  trucks,
+  storeOptions,
+  truckOptions,
   currentUserId,
 }: {
   initialPage: FeedPage;
   initialProfileNames: Record<string, string>;
   layouts: LayoutRow[];
-  stores: StoreRow[];
-  trucks: DeliveryTruckRow[];
+  /** 実際に投稿に付いている店舗名。マスタではなくこちらと突き合わせて絞り込む。 */
+  storeOptions: string[];
+  /** 同上。「その他」で手入力された便もここに含まれる。 */
+  truckOptions: string[];
   currentUserId: string | null;
 }) {
   const supabase = createClient();
@@ -107,15 +116,41 @@ export default function Feed({
   }, [profileNames]);
 
   useEffect(() => {
-    // ?session=<id> は共有リンクから開いたときにその投稿までスクロールするための
-    // 一時的なパラメータ。URLに残したままだと再訪問のたびにスクロールし直してしまうので、
-    // 読み取ったら一度きりで消す。
+    // ?session=<id> は共有リンクやプッシュ通知から開いたときにその投稿まで
+    // スクロールするための一時的なパラメータ。URLに残したままだと再訪問のたびに
+    // スクロールし直してしまうので、読み取ったら一度きりで消す。
     const targetId = searchParams.get("session");
     if (!targetId) return;
     router.replace("/", { scroll: false });
-    document
-      .getElementById(`session-${targetId}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    let cancelled = false;
+
+    function scrollToTarget() {
+      document
+        .getElementById(`session-${targetId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    if (initialPage.sessions.some((s) => s.id === targetId)) {
+      scrollToTarget();
+      return;
+    }
+
+    // フィードは1ページ8件しか読み込まないので、古い投稿へのリンクだと
+    // 対象がまだDOMに無い。その1件だけ取ってきて先頭に差し込む。
+    fetchSessionWithRelations(supabase, targetId).then((page) => {
+      if (cancelled || page.sessions.length === 0) return;
+      setSessions((prev) => mergeById(page.sessions, prev));
+      setReactions((prev) => mergeById(prev, page.reactions));
+      setComments((prev) => mergeById(prev, page.comments));
+      setClapCounts((prev) => ({ ...page.clapCounts, ...prev }));
+      // 差し込んだ直後はまだ描画されていないので次のフレームで狙う。
+      requestAnimationFrame(scrollToTarget);
+    });
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -244,11 +279,16 @@ export default function Feed({
 
   const applyPage = useCallback((page: FeedPage, append: boolean) => {
     setLoadError(page.error);
-    setHasMore(page.hasMore);
+    // 取得に失敗したときまで hasMore を false にすると、一時的な通信エラーで
+    // 「もっと見る」が消えたまま戻らなくなる。成功したときだけ更新する。
+    if (!page.error) setHasMore(page.hasMore);
+
     if (append) {
-      setSessions((prev) => [...prev, ...page.sessions]);
-      setReactions((prev) => [...prev, ...page.reactions]);
-      setComments((prev) => [...prev, ...page.comments]);
+      // ページングは件数オフセットなので、閲覧中に新しい投稿が入ると
+      // 同じ投稿が次のページにも現れる。IDで重複を弾く。
+      setSessions((prev) => mergeById(prev, page.sessions));
+      setReactions((prev) => mergeById(prev, page.reactions));
+      setComments((prev) => mergeById(prev, page.comments));
       setClapCounts((prev) => ({ ...prev, ...page.clapCounts }));
     } else {
       setSessions(page.sessions);
@@ -454,9 +494,9 @@ export default function Feed({
             className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
           >
             <option value="">{t.feed.allStores}</option>
-            {stores.map((store) => (
-              <option key={store.id} value={store.name}>
-                {store.name}
+            {storeOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
               </option>
             ))}
           </select>
@@ -468,9 +508,9 @@ export default function Feed({
             className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-gray-100"
           >
             <option value="">{t.feed.allTrucks}</option>
-            {trucks.map((truck) => (
-              <option key={truck.id} value={truck.name}>
-                {truck.name}
+            {truckOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
               </option>
             ))}
           </select>

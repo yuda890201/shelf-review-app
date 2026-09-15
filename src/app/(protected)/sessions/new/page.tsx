@@ -34,11 +34,7 @@ export default async function NewSessionPage() {
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true })
         .returns<LayoutRow[]>(),
-      supabase
-        .from("truck_layouts")
-        .select("*")
-        .order("sort_order", { ascending: true })
-        .returns<TruckLayoutRow[]>(),
+      supabase.from("truck_layouts").select("*").returns<TruckLayoutRow[]>(),
       supabase
         .from("layout_reference_photos")
         .select("layout_id, storage_path, thumb_path")
@@ -49,9 +45,22 @@ export default async function NewSessionPage() {
     ]);
 
   // 便 → その便が商品を持ってくるゴンドラID の対応表にしてから渡す。
+  //
+  // 撮る順番はゴンドラのマスタ順(`layouts` の sort_order / name)に揃える。
+  // truck_layouts 側にも sort_order 列はあるが、紐づけを登録するUIが値を入れて
+  // いないため全行0で並び順が決まらず、取得のたびに順番が変わりうる。
+  // 一覧画面と同じ並びにもなるので、管理者から見ても予想外の順番にならない。
+  const gondolaRank = new Map((layouts ?? []).map((row, index) => [row.id, index]));
   const gondolaIdsByTruck: Record<string, string[]> = {};
   for (const link of links ?? []) {
     (gondolaIdsByTruck[link.delivery_truck_id] ??= []).push(link.layout_id);
+  }
+  for (const ids of Object.values(gondolaIdsByTruck)) {
+    ids.sort(
+      (a, b) =>
+        (gondolaRank.get(a) ?? Number.MAX_SAFE_INTEGER) -
+        (gondolaRank.get(b) ?? Number.MAX_SAFE_INTEGER),
+    );
   }
 
   // 撮影ガイドに「どんな売場にするのが正解か」を並べて出すため、ゴンドラごとの

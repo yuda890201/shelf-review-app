@@ -79,6 +79,19 @@ export async function fetchFeedPage(
     (row) => row.session_id,
   );
 
+  const page = await fetchSessionsByIds(supabase, ids);
+  return page.error ? page : { ...page, hasMore };
+}
+
+/**
+ * 指定したIDの投稿とその関連データをまとめて取る。渡したIDの順に並べて返す。
+ */
+async function fetchSessionsByIds(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<FeedPage> {
+  if (ids.length === 0) return EMPTY_FEED_PAGE;
+
   const [
     { data: sessions, error: sessionError },
     { data: reactions },
@@ -107,7 +120,7 @@ export async function fetchFeedPage(
 
   if (sessionError) return { ...EMPTY_FEED_PAGE, error: sessionError.message };
 
-  // `.in()` は並び順を保証しないので、関数が返した順に並べ直す。
+  // `.in()` は並び順を保証しないので、渡されたIDの順に並べ直す。
   const byId = new Map((sessions ?? []).map((s) => [s.id, s]));
   const ordered = ids
     .map((id) => byId.get(id))
@@ -123,7 +136,19 @@ export async function fetchFeedPage(
     reactions: reactions ?? [],
     clapCounts,
     comments: comments ?? [],
-    hasMore,
+    hasMore: false,
     error: null,
   };
+}
+
+/**
+ * 共有リンクやプッシュ通知の `/?session=<id>` で開いた投稿を1件だけ取る。
+ * フィードは8件ずつしか読み込まないため、古い投稿へのリンクだと対象が
+ * 一覧に含まれない。その場合にこれで補ってから所定の位置へスクロールする。
+ */
+export async function fetchSessionWithRelations(
+  supabase: SupabaseClient,
+  sessionId: string,
+): Promise<FeedPage> {
+  return fetchSessionsByIds(supabase, [sessionId]);
 }

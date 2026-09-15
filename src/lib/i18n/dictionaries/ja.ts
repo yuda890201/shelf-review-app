@@ -129,6 +129,8 @@ const ja = {
   },
 
   wizard: {
+    doneNothing: "撮影せずに終了しました",
+    missedTitle: "まだ撮っていないゴンドラ",
     guidedProgress: (index: number, total: number) => `${index} / ${total}`,
     guidedHeading: (gondola: string) => `${gondola} を撮影してください`,
     guidedRemaining: "このあとのゴンドラ",

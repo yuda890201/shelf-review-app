@@ -174,16 +174,25 @@ export default function CommentPinBoard({
       }
     });
 
-    function cleanup() {
-      onMove.cancel();
+    function detach() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
       gestureCleanupRef.current = null;
     }
 
+    /** 中断用。保留中の移動は捨てる。 */
+    function cleanup() {
+      onMove.cancel();
+      detach();
+    }
+
     function onUp() {
-      cleanup();
+      // 保留中の pointermove を先に反映してから確定する。捨ててしまうと
+      // 終点が1フレーム古くなり、1フレームで終わる素早いドラッグは
+      // 「動いていない」= タップとして誤判定される。
+      onMove.flush();
+      detach();
       setDraftLine(null);
       if (moved) {
         setPendingLine({ x1: startX, y1: startY, x2: endX, y2: endY });
@@ -214,7 +223,7 @@ export default function CommentPinBoard({
   function startDrag(handler: (e: PointerEvent) => void) {
     const onMove = rafThrottle(handler);
     const handleUp = () => {
-      onMove.cancel();
+      onMove.flush();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", handleUp);
       dragCleanupRef.current = null;
