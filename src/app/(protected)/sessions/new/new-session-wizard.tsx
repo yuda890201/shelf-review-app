@@ -135,6 +135,8 @@ export default function NewSessionWizard({
 
   /** ガイド中に次のゴンドラへ進む。最後まで来たら完了画面へ。 */
   function advancePlan() {
+    // 前のゴンドラで出たエラーを次の画面に持ち越さない。
+    setErrorMessage("");
     const next = planIndex + 1;
     if (next < plan.length) {
       setPlanIndex(next);
@@ -144,6 +146,19 @@ export default function NewSessionWizard({
       setStep("done");
     }
   }
+
+  /** 完了画面から、飛ばしたゴンドラを撮り直しに戻る。 */
+  function shootPlanned(item: Gondola) {
+    const index = plan.findIndex((g) => g.id === item.id);
+    if (index < 0) return;
+    setPlanIndex(index);
+    setGondola(item);
+    setErrorMessage("");
+    setStep("camera");
+  }
+
+  /** 案内したのに1枚も撮らなかったゴンドラ(「飛ばす」を押した分を含む)。 */
+  const missedGondolas = plan.filter((item) => !shotCounts[item.id]);
 
   function finish() {
     if (createdIds.length === 1) {
@@ -491,13 +506,17 @@ export default function NewSessionWizard({
                   <p className="mb-1 text-xs font-medium text-gray-400">
                     {t.layoutDetail.referenceShort}
                   </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={shelfImageThumbUrl(referenceByGondola[gondola.id])}
-                    alt={t.layoutDetail.referenceAlt}
-                    decoding="async"
-                    className="w-full rounded-lg border border-neutral-700"
-                  />
+                  {/* 高さを先に確保しておく。読み込み後に高さが変わると、
+                      真下の大きな撮影ボタンがタップの瞬間に動いて誤タップになる。 */}
+                  <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={shelfImageThumbUrl(referenceByGondola[gondola.id])}
+                      alt={t.layoutDetail.referenceAlt}
+                      decoding="async"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
                 </div>
               ) : (
                 <p className="mb-4 text-xs text-amber-400">
@@ -597,13 +616,35 @@ export default function NewSessionWizard({
       {step === "done" && (
         <div>
           <h1 className="mb-1 text-lg font-bold text-gray-100">
-            {t.wizard.allDone}
+            {/* 全部飛ばして1枚も撮っていないのに「撮り終えました」と出ると嘘になる */}
+            {createdIds.length > 0 ? t.wizard.allDone : t.wizard.doneNothing}
           </h1>
           <p className="mb-6 text-xs text-gray-500">
             {t.wizard.contextLabel(store, truck, null)}
             <br />
             {t.wizard.finishHint(createdIds.length)}
           </p>
+
+          {missedGondolas.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-2 text-xs font-bold text-amber-400">
+                {t.wizard.missedTitle}
+              </p>
+              <div className="flex flex-col gap-2">
+                {missedGondolas.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => shootPlanned(item)}
+                    className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-3 text-left text-sm font-semibold text-gray-100 active:bg-blue-950/50"
+                  >
+                    📷 {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={finish}

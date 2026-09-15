@@ -264,238 +264,243 @@ function SessionCard({
   }
 
   return (
-    <article
-      id={`session-${session.id}`}
-      // card-defer: 画面外のカードは描画を後回しにして、低スペック端末での
-      // スクロールを軽くする(globals.css の content-visibility)。
-      className="card-defer overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
-    >
+    <>
+      {/* 全画面オーバーレイはカードの外に出す。card-defer(content-visibility)は
+          paint containment を伴うため、カードの中に置くと position:fixed の
+          基準がカード自身になり、画面全体ではなくカード内に閉じ込められる。 */}
       {resolving && <LoadingOverlay label={t.card.resolvingPhoto} />}
       {generatingSheet && <LoadingOverlay label={t.card.sheetGenerating} />}
 
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-gray-100">
-            {session.title || t.card.untitled}
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="truncate text-xs text-gray-500">
-              {session.images.store_name}{" "}
-              {session.images.shelf_category &&
-                `/ ${session.images.shelf_category}`}
+      <article
+        id={`session-${session.id}`}
+        // card-defer: 画面外のカードは描画を後回しにして、低スペック端末での
+        // スクロールを軽くする(globals.css の content-visibility)。
+        className="card-defer overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+      >
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-gray-100">
+              {session.title || t.card.untitled}
             </p>
-            <select
-              value={session.layout_id ?? ""}
-              onChange={(e) =>
-                onSelectLayout(session.id, e.target.value || null)
-              }
-              className={`max-w-[8.5rem] shrink-0 truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
-                session.layout_id
-                  ? "border-blue-800 bg-blue-950/50 text-blue-300"
-                  : "border-dashed border-neutral-600 text-gray-500"
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="truncate text-xs text-gray-500">
+                {session.images.store_name}{" "}
+                {session.images.shelf_category &&
+                  `/ ${session.images.shelf_category}`}
+              </p>
+              <select
+                value={session.layout_id ?? ""}
+                onChange={(e) =>
+                  onSelectLayout(session.id, e.target.value || null)
+                }
+                className={`max-w-[8.5rem] shrink-0 truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
+                  session.layout_id
+                    ? "border-blue-800 bg-blue-950/50 text-blue-300"
+                    : "border-dashed border-neutral-600 text-gray-500"
+                }`}
+              >
+                <option value="">{t.card.selectGondola}</option>
+                {layouts.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="truncate text-[11px] text-gray-500">
+              {posterName ?? t.card.staff} ·{" "}
+              {formatRelativeTime(session.created_at, t, locale)}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            {session.resolved_at && (
+              <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
+                {t.card.resolved}
+              </span>
+            )}
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                isOpen
+                  ? "bg-green-900/50 text-green-300"
+                  : "bg-neutral-700 text-gray-300"
               }`}
             >
-              <option value="">{t.card.selectGondola}</option>
-              {layouts.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="truncate text-[11px] text-gray-500">
-            {posterName ?? t.card.staff} ·{" "}
-            {formatRelativeTime(session.created_at, t, locale)}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          {session.resolved_at && (
-            <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">
-              {t.card.resolved}
+              {isOpen ? t.card.statusOpen : t.card.statusClosed}
             </span>
-          )}
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              isOpen
-                ? "bg-green-900/50 text-green-300"
-                : "bg-neutral-700 text-gray-300"
-            }`}
-          >
-            {isOpen ? t.card.statusOpen : t.card.statusClosed}
-          </span>
-        </div>
-      </div>
-
-      {session.resolved_at && session.after_image && (
-        <div className="grid grid-cols-2 gap-2 px-3 pb-2">
-          <div>
-            <p className="mb-1 text-center text-xs font-medium text-gray-500">
-              {t.card.before}
-            </p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={shelfImageThumbUrl(session.images)}
-              alt={t.card.before}
-              loading="lazy"
-              decoding="async"
-              className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
-            />
-          </div>
-          <div>
-            <p className="mb-1 text-center text-xs font-medium text-blue-400">
-              {t.card.after}
-            </p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={shelfImageThumbUrl(session.after_image)}
-              alt={t.card.after}
-              loading="lazy"
-              decoding="async"
-              className="aspect-square w-full rounded-md border border-blue-800 object-cover"
-            />
           </div>
         </div>
-      )}
 
-      <CommentPinBoard
-        photoUrl={shelfImageThumbUrl(session.images)}
-        pins={sessionComments}
-        currentUserId={currentUserId}
-        canComment={isOpen}
-        tags={tags}
-        onTagsChange={onTagsChange}
-        onSubmit={handleSubmitComment}
-        tapDelayMs={DOUBLE_TAP_DELAY_MS}
-        onDoubleTap={() => onClap(session.id)}
-        hint={isOpen ? t.pin.hintFeed : undefined}
-        overlay={
-          <>
-            {myReaction && (
-              <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
-                {myReaction === "done" ? "✅" : "🔧"}
-              </div>
-            )}
-
-            {isPopping && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <span className="heart-pop text-7xl">🙏</span>
-              </div>
-            )}
-          </>
-        }
-      />
-
-      <div className="px-3 py-3">
-        <button
-          type="button"
-          onClick={() => onClap(session.id)}
-          className="mb-2 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-gray-200 active:bg-neutral-700"
-        >
-          {t.card.thanks(clapCount)}
-        </button>
-
-        <div className="mb-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => onReact(session.id, "done")}
-            disabled={reactionLocked}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
-              myReaction === "done"
-                ? "border-blue-500 bg-blue-950/60 text-blue-300"
-                : "border-neutral-700 text-gray-400"
-            }`}
-          >
-            {t.card.done(doneCount)}
-          </button>
-          <button
-            type="button"
-            onClick={() => onReact(session.id, "needs_work")}
-            disabled={reactionLocked}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
-              myReaction === "needs_work"
-                ? "border-orange-500 bg-orange-950/60 text-orange-300"
-                : "border-neutral-700 text-gray-400"
-            }`}
-          >
-            {t.card.needsWork(needsWorkCount)}
-          </button>
-        </div>
-
-        <div className="mb-2 flex items-center gap-4">
-          <span className="flex items-center gap-1 text-gray-400">
-            <span className="text-xl leading-none">💬</span>
-            <span className="text-xs">{sessionComments.length}</span>
-          </span>
-          <button
-            type="button"
-            onClick={handleGenerateFeedbackSheet}
-            disabled={generatingSheet}
-            className="text-xl leading-none text-gray-400 disabled:opacity-50"
-            aria-label={t.card.sheetLabel}
-          >
-            📤
-          </button>
-        </div>
-
-        {total > 0 && (
-          <div className="mb-2">
-            <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
-              <div className="bg-blue-500" style={{ width: `${doneRate}%` }} />
-              <div
-                className="bg-orange-400"
-                style={{ width: `${needsWorkRate}%` }}
+        {session.resolved_at && session.after_image && (
+          <div className="grid grid-cols-2 gap-2 px-3 pb-2">
+            <div>
+              <p className="mb-1 text-center text-xs font-medium text-gray-500">
+                {t.card.before}
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={shelfImageThumbUrl(session.images)}
+                alt={t.card.before}
+                loading="lazy"
+                decoding="async"
+                className="aspect-square w-full rounded-md border border-neutral-800 object-cover"
               />
             </div>
-            <div className="mt-1 flex justify-between text-[11px] text-gray-500">
-              <span>{t.card.doneRate(doneRate)}</span>
-              <span>{t.card.needsWorkRate(needsWorkRate)}</span>
+            <div>
+              <p className="mb-1 text-center text-xs font-medium text-blue-400">
+                {t.card.after}
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={shelfImageThumbUrl(session.after_image)}
+                alt={t.card.after}
+                loading="lazy"
+                decoding="async"
+                className="aspect-square w-full rounded-md border border-blue-800 object-cover"
+              />
             </div>
           </div>
         )}
 
-        {isFacilitator && (isOpen || !session.resolved_at) && (
-          <div className="mt-1 flex flex-wrap gap-2 border-t border-neutral-800 pt-2">
-            {isOpen && (
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={closing}
-                className="rounded-md border border-red-800 px-2 py-1 text-xs font-semibold text-red-400 disabled:opacity-50"
-              >
-                {closing ? t.card.closing : t.card.closeSession}
-              </button>
-            )}
-            {!session.resolved_at && (
-              <>
-                <input
-                  ref={resolveCameraRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleResolvePhotoSelected}
-                  className="hidden"
+        <CommentPinBoard
+          photoUrl={shelfImageThumbUrl(session.images)}
+          pins={sessionComments}
+          currentUserId={currentUserId}
+          canComment={isOpen}
+          tags={tags}
+          onTagsChange={onTagsChange}
+          onSubmit={handleSubmitComment}
+          tapDelayMs={DOUBLE_TAP_DELAY_MS}
+          onDoubleTap={() => onClap(session.id)}
+          hint={isOpen ? t.pin.hintFeed : undefined}
+          overlay={
+            <>
+              {myReaction && (
+                <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-base leading-none">
+                  {myReaction === "done" ? "✅" : "🔧"}
+                </div>
+              )}
+
+              {isPopping && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="heart-pop text-7xl">🙏</span>
+                </div>
+              )}
+            </>
+          }
+        />
+
+        <div className="px-3 py-3">
+          <button
+            type="button"
+            onClick={() => onClap(session.id)}
+            className="mb-2 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-gray-200 active:bg-neutral-700"
+          >
+            {t.card.thanks(clapCount)}
+          </button>
+
+          <div className="mb-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => onReact(session.id, "done")}
+              disabled={reactionLocked}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
+                myReaction === "done"
+                  ? "border-blue-500 bg-blue-950/60 text-blue-300"
+                  : "border-neutral-700 text-gray-400"
+              }`}
+            >
+              {t.card.done(doneCount)}
+            </button>
+            <button
+              type="button"
+              onClick={() => onReact(session.id, "needs_work")}
+              disabled={reactionLocked}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
+                myReaction === "needs_work"
+                  ? "border-orange-500 bg-orange-950/60 text-orange-300"
+                  : "border-neutral-700 text-gray-400"
+              }`}
+            >
+              {t.card.needsWork(needsWorkCount)}
+            </button>
+          </div>
+
+          <div className="mb-2 flex items-center gap-4">
+            <span className="flex items-center gap-1 text-gray-400">
+              <span className="text-xl leading-none">💬</span>
+              <span className="text-xs">{sessionComments.length}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleGenerateFeedbackSheet}
+              disabled={generatingSheet}
+              className="text-xl leading-none text-gray-400 disabled:opacity-50"
+              aria-label={t.card.sheetLabel}
+            >
+              📤
+            </button>
+          </div>
+
+          {total > 0 && (
+            <div className="mb-2">
+              <div className="flex h-2 overflow-hidden rounded-full bg-neutral-800">
+                <div className="bg-blue-500" style={{ width: `${doneRate}%` }} />
+                <div
+                  className="bg-orange-400"
+                  style={{ width: `${needsWorkRate}%` }}
                 />
-                <input
-                  ref={resolveGalleryRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleResolvePhotoSelected}
-                  className="hidden"
-                />
+              </div>
+              <div className="mt-1 flex justify-between text-[11px] text-gray-500">
+                <span>{t.card.doneRate(doneRate)}</span>
+                <span>{t.card.needsWorkRate(needsWorkRate)}</span>
+              </div>
+            </div>
+          )}
+
+          {isFacilitator && (isOpen || !session.resolved_at) && (
+            <div className="mt-1 flex flex-wrap gap-2 border-t border-neutral-800 pt-2">
+              {isOpen && (
                 <button
                   type="button"
-                  onClick={() => resolveCameraRef.current?.click()}
-                  disabled={resolving}
-                  className="rounded-md border border-blue-800 px-2 py-1 text-xs font-semibold text-blue-400 disabled:opacity-50"
+                  onClick={handleClose}
+                  disabled={closing}
+                  className="rounded-md border border-red-800 px-2 py-1 text-xs font-semibold text-red-400 disabled:opacity-50"
                 >
-                  {resolving ? t.card.registering : t.card.markResolved}
+                  {closing ? t.card.closing : t.card.closeSession}
                 </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </article>
+              )}
+              {!session.resolved_at && (
+                <>
+                  <input
+                    ref={resolveCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleResolvePhotoSelected}
+                    className="hidden"
+                  />
+                  <input
+                    ref={resolveGalleryRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleResolvePhotoSelected}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => resolveCameraRef.current?.click()}
+                    disabled={resolving}
+                    className="rounded-md border border-blue-800 px-2 py-1 text-xs font-semibold text-blue-400 disabled:opacity-50"
+                  >
+                    {resolving ? t.card.registering : t.card.markResolved}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </article>
+    </>
   );
 }
 

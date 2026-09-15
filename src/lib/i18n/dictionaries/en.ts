@@ -128,6 +128,8 @@ const en: Dictionary = {
   },
 
   wizard: {
+    doneNothing: "Finished without taking any photos",
+    missedTitle: "Gondolas not photographed yet",
     guidedProgress: (index, total) => `${index} / ${total}`,
     guidedHeading: (gondola) => `Photograph ${gondola}`,
     guidedRemaining: "Coming up",

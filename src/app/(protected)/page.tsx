@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { DeliveryTruckRow, LayoutRow, StoreRow } from "@/lib/types";
+import type { LayoutRow } from "@/lib/types";
 import { fetchFeedPage } from "@/lib/feed-data";
 import Feed from "./feed";
 
@@ -10,35 +10,25 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [
-    page,
-    { data: profileRows },
-    { data: layouts },
-    { data: stores },
-    { data: trucks },
-  ] = await Promise.all([
-    fetchFeedPage(supabase, 0),
-    supabase
-      .from("profiles")
-      .select("id, display_name")
-      .returns<{ id: string; display_name: string }[]>(),
-    supabase
-      .from("layouts")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true })
-      .returns<LayoutRow[]>(),
-    supabase
-      .from("stores")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .returns<StoreRow[]>(),
-    supabase
-      .from("delivery_trucks")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .returns<DeliveryTruckRow[]>(),
-  ]);
+  const [page, { data: profileRows }, { data: layouts }, { data: filterRows }] =
+    await Promise.all([
+      fetchFeedPage(supabase, 0),
+      supabase
+        .from("profiles")
+        .select("id, display_name")
+        .returns<{ id: string; display_name: string }[]>(),
+      supabase
+        .from("layouts")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true })
+        .returns<LayoutRow[]>(),
+      // 絞り込みの候補は、マスタではなく実際に投稿に付いている値から作る
+      // (「その他」で手入力した便も選べるように、かつ選んでも0件にならないように)
+      supabase.rpc("feed_filter_options"),
+    ]);
+
+  const options = (filterRows ?? []) as { kind: string; value: string }[];
 
   const profileNames: Record<string, string> = {};
   for (const row of profileRows ?? []) {
@@ -57,8 +47,12 @@ export default async function HomePage() {
       initialPage={page}
       initialProfileNames={profileNames}
       layouts={layouts ?? []}
-      stores={stores ?? []}
-      trucks={trucks ?? []}
+      storeOptions={options
+        .filter((row) => row.kind === "store")
+        .map((row) => row.value)}
+      truckOptions={options
+        .filter((row) => row.kind === "truck")
+        .map((row) => row.value)}
       currentUserId={user?.id ?? null}
     />
   );

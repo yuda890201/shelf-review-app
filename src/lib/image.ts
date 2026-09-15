@@ -17,7 +17,13 @@ export type PreparedImage = {
   thumb: File | null;
 };
 
-async function loadImage(file: File): Promise<HTMLImageElement | null> {
+type LoadedImage = {
+  img: HTMLImageElement;
+  /** 描画がすべて終わってから呼ぶ。早く呼ぶとSafariで空のcanvasになることがある。 */
+  release: () => void;
+};
+
+async function loadImage(file: File): Promise<LoadedImage | null> {
   // Loaded via an <img> element rather than createImageBitmap(): browsers
   // have long applied EXIF orientation consistently when decoding <img>
   // sources, whereas createImageBitmap's orientation handling depends on an
@@ -26,16 +32,16 @@ async function loadImage(file: File): Promise<HTMLImageElement | null> {
   // sideways here even after requesting "from-image" explicitly.
   const objectUrl = URL.createObjectURL(file);
   try {
-    return await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
       el.onerror = () => reject(new Error("image load failed"));
       el.src = objectUrl;
     });
+    return { img, release: () => URL.revokeObjectURL(objectUrl) };
   } catch {
-    return null;
-  } finally {
     URL.revokeObjectURL(objectUrl);
+    return null;
   }
 }
 
@@ -80,23 +86,31 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     return { full: file, thumb: null };
   }
 
-  const img = await loadImage(file);
-  if (!img) return { full: file, thumb: null };
+  const loaded = await loadImage(file);
+  if (!loaded) return { full: file, thumb: null };
 
-  const longestSide = Math.max(img.naturalWidth, img.naturalHeight);
+  const { img } = loaded;
+  try {
+    const longestSide = Math.max(img.naturalWidth, img.naturalHeight);
 
-  const fullBlob = await resizeToBlob(img, MAX_DIMENSION, JPEG_QUALITY);
-  const full =
-    fullBlob && fullBlob.size < file.size
-      ? new File([fullBlob], jpegName(file.name), { type: "image/jpeg" })
-      : file;
+    const fullBlob = await resizeToBlob(img, MAX_DIMENSION, JPEG_QUALITY);
+    const full =
+      fullBlob && fullBlob.size < file.size
+        ? new File([fullBlob], jpegName(file.name), { type: "image/jpeg" })
+        : file;
 
-  if (longestSide <= THUMB_SKIP_DIMENSION) return { full, thumb: null };
+    if (longestSide <= THUMB_SKIP_DIMENSION) return { full, thumb: null };
 
-  const thumbBlob = await resizeToBlob(img, THUMB_DIMENSION, THUMB_QUALITY);
-  const thumb = thumbBlob
-    ? new File([thumbBlob], jpegName(file.name), { type: "image/jpeg" })
-    : null;
+    const thumbBlob = await resizeToBlob(img, THUMB_DIMENSION, THUMB_QUALITY);
+    const thumb = thumbBlob
+      ? new File([thumbBlob], jpegName(file.name), { type: "image/jpeg" })
+      : null;
 
-  return { full, thumb };
+    return { full, thumb };
+  } finally {
+    // blob: URLの解放は「原寸とサムネイルの両方を描き終えてから」。
+    // 読み込み直後に解放するとWebKitで描画元が無効になり、真っ白な写真が
+    // アップロードされることがある(縮小後のほうが軽いのでサイズ判定も通ってしまう)。
+    loaded.release();
+  }
 }

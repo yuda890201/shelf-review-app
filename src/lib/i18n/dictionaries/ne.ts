@@ -128,6 +128,8 @@ const ne: Dictionary = {
   },
 
   wizard: {
+    doneNothing: "कुनै फोटो नखिची सकियो",
+    missedTitle: "अझै फोटो नखिचिएका गन्डोला",
     guidedProgress: (index, total) => `${index} / ${total}`,
     guidedHeading: (gondola) => `${gondola} को फोटो खिच्नुहोस्`,
     guidedRemaining: "अब आउने गन्डोला",

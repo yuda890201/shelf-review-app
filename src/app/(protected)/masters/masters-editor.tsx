@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
@@ -192,7 +192,8 @@ function TruckGondolaLinks({
   trucks: DeliveryTruckRow[];
   gondolas: LayoutRow[];
   links: TruckLayoutRow[];
-  onChange: (next: TruckLayoutRow[]) => void;
+  /** 連続タップでも取りこぼさないよう、更新関数を渡せる形にしている。 */
+  onChange: Dispatch<SetStateAction<TruckLayoutRow[]>>;
 }) {
   const supabase = createClient();
   const { t } = useI18n();
@@ -219,14 +220,18 @@ function TruckGondolaLinks({
     const existing = linkByKey.get(key);
     setBusyKey(key);
 
+    // 直前の値を配列で持ち回すと、2つ続けてタップしたときに後の更新が前の
+    // 更新を巻き戻してしまう(awaitを挟むため)。必ず最新の値から作り直す。
     if (existing) {
-      onChange(links.filter((l) => l.id !== existing.id));
+      onChange((prev) => prev.filter((l) => l.id !== existing.id));
       const { error } = await supabase
         .from("truck_layouts")
         .delete()
         .eq("id", existing.id);
       if (error) {
-        onChange([...links, existing]);
+        onChange((prev) =>
+          prev.some((l) => l.id === existing.id) ? prev : [...prev, existing],
+        );
         alert(t.masters.linkFailed(error.message));
       }
     } else {
@@ -238,7 +243,9 @@ function TruckGondolaLinks({
       if (error) {
         alert(t.masters.linkFailed(error.message));
       } else if (data) {
-        onChange([...links, data]);
+        onChange((prev) =>
+          prev.some((l) => l.id === data.id) ? prev : [...prev, data],
+        );
       }
     }
     setBusyKey(null);
